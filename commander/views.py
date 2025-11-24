@@ -25,6 +25,7 @@ def home(request):
     """Main view - Step-by-step DeepSearch workflow with Commander."""
     import sys
     import traceback
+    from django.http import HttpResponse
     
     # Handle HEAD requests (health checks) quickly
     if request.method == "HEAD":
@@ -33,9 +34,10 @@ def home(request):
         return HttpResponse(status=200)
     
     # Force output to stderr (which Render captures) immediately
-    sys.stderr.write("DEBUG: home() view called\n")
+    sys.stderr.write(f"DEBUG: home() view called - Method: {request.method}, Path: {request.path}\n")
     sys.stderr.flush()
     
+    # Wrap everything in a try-except to ensure we always return a response
     try:
         sys.stderr.write("DEBUG: Getting common issues\n")
         sys.stderr.flush()
@@ -517,6 +519,7 @@ def home(request):
         
         # Log to file as well (handle permission errors in production)
         try:
+            from datetime import datetime
             with open("/tmp/django_error.log", "a") as f:
                 f.write(f"\n{'='*80}\n")
                 f.write(f"ERROR at {datetime.now()}\n")
@@ -526,7 +529,8 @@ def home(request):
                 f.write(f"\nFull Traceback:\n{error_traceback}\n")
                 f.write(f"{'='*80}\n\n")
         except Exception as log_error:
-            print(f"Could not write to error log: {log_error}")
+            sys.stderr.write(f"Could not write to error log: {log_error}\n")
+            sys.stderr.flush()
         
         # Prevent infinite redirect loops
         error_count = request.session.get("error_count", 0)
