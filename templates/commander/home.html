@@ -484,8 +484,9 @@
                         <div class="scores-sidebar">
                             <h3>Commander Scores</h3>
                             {% for rule in suggested_rules %}
-                                {% if rule.id and rule.audit_result %}
-                                <div class="score-card">
+                                {% if rule.id %}
+                                    {% if rule.audit_result %}
+                                    <div class="score-card">
                                     <h4>Rule {{ forloop.counter }}</h4>
                                     
                                     <!-- Final Recommendation -->
