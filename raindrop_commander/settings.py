@@ -11,14 +11,30 @@ DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
 
 # CSRF Trusted Origins - required for HTTPS sites
-CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if os.getenv("CSRF_TRUSTED_ORIGINS") else []
-# If CSRF_TRUSTED_ORIGINS is not set, derive from ALLOWED_HOSTS
-if not CSRF_TRUSTED_ORIGINS or CSRF_TRUSTED_ORIGINS == ['']:
-    CSRF_TRUSTED_ORIGINS = [f"https://{host}" for host in ALLOWED_HOSTS if host and host != "*"]
-    # Also add http for local development
+# Check if CSRF_TRUSTED_ORIGINS is explicitly set
+csrf_origins_env = os.getenv("CSRF_TRUSTED_ORIGINS", "").strip()
+if csrf_origins_env:
+    CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in csrf_origins_env.split(",") if origin.strip()]
+else:
+    # Derive from ALLOWED_HOSTS
+    CSRF_TRUSTED_ORIGINS = []
+    for host in ALLOWED_HOSTS:
+        host = host.strip()
+        if host and host != "*":
+            # Add https for production
+            CSRF_TRUSTED_ORIGINS.append(f"https://{host}")
+            # Add http for local development
+            if DEBUG:
+                CSRF_TRUSTED_ORIGINS.append(f"http://{host}")
+    
+    # Always add localhost for development
     if DEBUG:
-        CSRF_TRUSTED_ORIGINS.extend([f"http://{host}" for host in ALLOWED_HOSTS if host and host != "*"])
-        CSRF_TRUSTED_ORIGINS.extend(["http://localhost:8000", "http://127.0.0.1:8000"])
+        CSRF_TRUSTED_ORIGINS.extend([
+            "http://localhost:8000",
+            "http://127.0.0.1:8000",
+            "http://localhost",
+            "http://127.0.0.1"
+        ])
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -84,4 +100,9 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Debug CSRF settings (remove in production if needed)
+if DEBUG:
+    print(f"DEBUG: ALLOWED_HOSTS = {ALLOWED_HOSTS}")
+    print(f"DEBUG: CSRF_TRUSTED_ORIGINS = {CSRF_TRUSTED_ORIGINS}")
 
