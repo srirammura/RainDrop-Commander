@@ -185,82 +185,82 @@ def home(request):
         try:
             # Check if searching (loading examples)
             if is_searching and current_index == -1:
-            step = "searching"
-            loading_screen_shown = request.session.get("loading_screen_shown", False)
-            if not loading_screen_shown:
-                request.session["loading_screen_shown"] = True
-                request.session.modified = True
-            elif generated_examples is None and user_issue:
-                # Generate examples
-                try:
-                    examples = generate_examples_from_issue(user_issue)
-                    request.session["generated_examples"] = examples
-                    request.session["searching"] = False
-                    request.session["current_example_index"] = 0
-                    request.session["loading_screen_shown"] = False
+                step = "searching"
+                loading_screen_shown = request.session.get("loading_screen_shown", False)
+                if not loading_screen_shown:
+                    request.session["loading_screen_shown"] = True
                     request.session.modified = True
-                    return redirect("home")
-                except Exception as e:
-                    print(f"ERROR: Failed to generate examples: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    request.session["user_issue"] = None
-                    request.session["current_example_index"] = -2
-                    request.session["searching"] = False
-                    request.session.modified = True
-                    return redirect("home")
-        
-        # Check if generating rules
-        elif is_generating_rules and current_index == -3:
-            print(f"DEBUG: Detected rules generation step - is_generating_rules={is_generating_rules}, current_index={current_index}")
-            step = "generating_rules"
-            rules_loading_screen_shown = request.session.get("rules_loading_screen_shown", False)
-            if not rules_loading_screen_shown:
-                # First time showing loading screen, set flag
-                request.session["rules_loading_screen_shown"] = True
-                request.session.modified = True
-                print(f"DEBUG: First time showing rules loading screen")
-            elif generated_rules is None and user_issue:
-                # Loading screen already shown, now generate rules
-                pending_labeled_examples = request.session.get("pending_labeled_examples")
-                print(f"DEBUG: About to generate rules. pending_labeled_examples: {pending_labeled_examples is not None}")
-                if pending_labeled_examples:
+                elif generated_examples is None and user_issue:
+                    # Generate examples
                     try:
-                        print(f"DEBUG: ===== CALLING LLM TO GENERATE RULES =====")
-                        rules = generate_suggested_rules_from_examples(user_issue, pending_labeled_examples)
-                        print(f"DEBUG: ===== LLM GENERATED {len(rules)} RULES =====")
-                        request.session["generated_rules"] = rules
-                        request.session["generating_rules"] = False
-                        request.session["current_example_index"] = -1
-                        request.session["pending_labeled_examples"] = None
-                        request.session["rules_loading_screen_shown"] = False
-                        request.session["current_rule_index"] = 0
+                        examples = generate_examples_from_issue(user_issue)
+                        request.session["generated_examples"] = examples
+                        request.session["searching"] = False
+                        request.session["current_example_index"] = 0
+                        request.session["loading_screen_shown"] = False
                         request.session.modified = True
-                        print(f"DEBUG: Rules generated, redirecting to rules review")
                         return redirect("home")
                     except Exception as e:
-                        print(f"ERROR: Failed to generate rules: {e}")
+                        print(f"ERROR: Failed to generate examples: {e}")
                         import traceback
                         traceback.print_exc()
+                        request.session["user_issue"] = None
+                        request.session["current_example_index"] = -2
+                        request.session["searching"] = False
+                        request.session.modified = True
+                        return redirect("home")
+            
+            # Check if generating rules
+            elif is_generating_rules and current_index == -3:
+                print(f"DEBUG: Detected rules generation step - is_generating_rules={is_generating_rules}, current_index={current_index}")
+                step = "generating_rules"
+                rules_loading_screen_shown = request.session.get("rules_loading_screen_shown", False)
+                if not rules_loading_screen_shown:
+                    # First time showing loading screen, set flag
+                    request.session["rules_loading_screen_shown"] = True
+                    request.session.modified = True
+                    print(f"DEBUG: First time showing rules loading screen")
+                elif generated_rules is None and user_issue:
+                    # Loading screen already shown, now generate rules
+                    pending_labeled_examples = request.session.get("pending_labeled_examples")
+                    print(f"DEBUG: About to generate rules. pending_labeled_examples: {pending_labeled_examples is not None}")
+                    if pending_labeled_examples:
+                        try:
+                            print(f"DEBUG: ===== CALLING LLM TO GENERATE RULES =====")
+                            rules = generate_suggested_rules_from_examples(user_issue, pending_labeled_examples)
+                            print(f"DEBUG: ===== LLM GENERATED {len(rules)} RULES =====")
+                            request.session["generated_rules"] = rules
+                            request.session["generating_rules"] = False
+                            request.session["current_example_index"] = -1
+                            request.session["pending_labeled_examples"] = None
+                            request.session["rules_loading_screen_shown"] = False
+                            request.session["current_rule_index"] = 0
+                            request.session.modified = True
+                            print(f"DEBUG: Rules generated, redirecting to rules review")
+                            return redirect("home")
+                        except Exception as e:
+                            print(f"ERROR: Failed to generate rules: {e}")
+                            import traceback
+                            traceback.print_exc()
+                            request.session["user_issue"] = None
+                            request.session["current_example_index"] = -2
+                            request.session["generating_rules"] = False
+                            request.session.modified = True
+                            return redirect("home")
+                    else:
+                        print(f"ERROR: No pending_labeled_examples found")
                         request.session["user_issue"] = None
                         request.session["current_example_index"] = -2
                         request.session["generating_rules"] = False
                         request.session.modified = True
                         return redirect("home")
-                else:
-                    print(f"ERROR: No pending_labeled_examples found")
-                    request.session["user_issue"] = None
-                    request.session["current_example_index"] = -2
-                    request.session["generating_rules"] = False
-                    request.session.modified = True
-                    return redirect("home")
-        
-        # Show labeling step
-        elif current_index >= 0 and generated_examples and user_issue:
-            step = "labeling_examples"
-            if deepsearch_issue and deepsearch_issue.get("examples") and current_index < len(deepsearch_issue["examples"]):
-                current_example = deepsearch_issue["examples"][current_index]
-        
+            
+            # Show labeling step
+            elif current_index >= 0 and generated_examples and user_issue:
+                step = "labeling_examples"
+                if deepsearch_issue and deepsearch_issue.get("examples") and current_index < len(deepsearch_issue["examples"]):
+                    current_example = deepsearch_issue["examples"][current_index]
+            
             # Show rules review
             elif current_index == -1:
                 # Get fresh generated_rules from session
