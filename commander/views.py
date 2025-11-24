@@ -373,6 +373,8 @@ def home(request):
         total_rules = len([r for r in suggested_rules if isinstance(suggested_rules, list) and not r.get("user_rejected", False)]) if isinstance(suggested_rules, list) else 0
         
         print(f"DEBUG: Building context - step={step}, total_examples={total_examples}, total_rules={total_rules}, display_rules_count={len(display_rules)}")
+        sys.stderr.write(f"DEBUG: Building context - step={step}, total_examples={total_examples}, total_rules={total_rules}, display_rules_count={len(display_rules)}\n")
+        sys.stderr.flush()
         
         try:
             sys.stderr.write("DEBUG: Creating context dictionary\n")
@@ -399,6 +401,9 @@ def home(request):
             sys.stderr.write("DEBUG: Context built successfully, attempting to render template\n")
             sys.stderr.flush()
             print(f"DEBUG: Context built successfully, attempting to render template")
+            # Force flush stdout to ensure print is visible
+            import sys as sys_module
+            sys_module.stdout.flush()
             sys.stderr.write("DEBUG: Print statement executed, continuing...\n")
             sys.stderr.flush()
             
