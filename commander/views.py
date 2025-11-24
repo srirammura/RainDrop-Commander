@@ -78,7 +78,11 @@ def home(request):
         # Always get fresh suggested_rules from generated_rules
         suggested_rules = generated_rules if generated_rules else []
         
-        total_examples = len(deepsearch_issue["examples"]) if deepsearch_issue else 0
+        # Safely calculate total_examples
+        try:
+            total_examples = len(deepsearch_issue.get("examples", [])) if deepsearch_issue and isinstance(deepsearch_issue, dict) else 0
+        except (AttributeError, TypeError, KeyError):
+            total_examples = 0
         
         # Handle POST requests
         if request.method == "POST":
@@ -337,11 +341,18 @@ def home(request):
                         commander = CommanderAgent(rule.get("description", ""), examples_for_audit)
                         audit_result = commander.audit_rule()
                         rule["audit_result"] = audit_result
-                        rule["audit_result_json"] = json.dumps(audit_result, cls=DjangoJSONEncoder, default=str)
+                        try:
+                            rule["audit_result_json"] = json.dumps(audit_result, cls=DjangoJSONEncoder, default=str)
+                        except Exception as json_err:
+                            sys.stderr.write(f"WARNING: Failed to JSON encode audit_result for rule {rule.get('id')}: {json_err}\n")
+                            sys.stderr.flush()
+                            rule["audit_result_json"] = "{}"
                         rule["status"] = "audited"
                     except Exception as e:
                         rule["audit_error"] = str(e)
                         rule["status"] = "error"
+                        rule["audit_result"] = None
+                        rule["audit_result_json"] = "{}"
         
         # Mark deployed and rejected rules
         deployed_rules = request.session.get("deployed_rules", [])
@@ -350,6 +361,12 @@ def home(request):
         if not isinstance(suggested_rules, list):
             suggested_rules = []
         for rule in suggested_rules:
+            # Ensure rule is a dict
+            if not isinstance(rule, dict):
+                continue
+            # Ensure rule has an id
+            if "id" not in rule:
+                rule["id"] = f"rule_{id(rule)}"
             if rule.get("id") in deployed_rules:
                 rule["deployed"] = True
             if rule.get("id") in rejected_rules:
