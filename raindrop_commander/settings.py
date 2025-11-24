@@ -36,6 +36,10 @@ else:
             "http://127.0.0.1"
         ])
 
+# Always ensure raindrop-commander.onrender.com is in trusted origins (for production)
+if "https://raindrop-commander.onrender.com" not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append("https://raindrop-commander.onrender.com")
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
