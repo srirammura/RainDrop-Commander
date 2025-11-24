@@ -32,5 +32,6 @@ RUN python manage.py collectstatic --noinput || true
 EXPOSE 8000
 
 # Run gunicorn (use PORT environment variable if set, otherwise default to 8000)
-CMD sh -c 'gunicorn raindrop_commander.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 2 --timeout 120'
+# Render sets PORT automatically, but we default to 8000 for local testing
+CMD sh -c 'gunicorn raindrop_commander.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 2 --timeout 120 --access-logfile - --error-logfile -'
 
