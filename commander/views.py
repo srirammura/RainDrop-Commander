@@ -18,9 +18,20 @@ from datetime import datetime
 
 def home(request):
     """Main view - Step-by-step DeepSearch workflow with Commander."""
+    import sys
+    import traceback
+    
+    # Force output to stderr (which Render captures) immediately
+    sys.stderr.write("DEBUG: home() view called\n")
+    sys.stderr.flush()
+    
     try:
+        sys.stderr.write("DEBUG: Getting common issues\n")
+        sys.stderr.flush()
         # Get common issues
         common_issues = get_common_issues()
+        sys.stderr.write(f"DEBUG: Got {len(common_issues)} common issues\n")
+        sys.stderr.flush()
         
         # Initialize session variables
         if "example_labels" not in request.session:
@@ -385,8 +396,19 @@ def home(request):
             # Re-raise to be caught by outer exception handler
             raise
     except Exception as e:
-        import traceback
         error_traceback = traceback.format_exc()
+        # Write to stderr (captured by Render logs)
+        sys.stderr.write("=" * 80 + "\n")
+        sys.stderr.write("ERROR IN HOME VIEW:\n")
+        sys.stderr.write("=" * 80 + "\n")
+        sys.stderr.write(f"Exception Type: {type(e).__name__}\n")
+        sys.stderr.write(f"Exception Message: {str(e)}\n")
+        sys.stderr.write("\nFull Traceback:\n")
+        sys.stderr.write(error_traceback)
+        sys.stderr.write("=" * 80 + "\n")
+        sys.stderr.flush()
+        
+        # Also print to stdout
         print("=" * 80)
         print("ERROR IN HOME VIEW:")
         print("=" * 80)
