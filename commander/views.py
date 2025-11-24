@@ -482,14 +482,42 @@ def home(request):
             try:
                 sys.stderr.write("DEBUG: Calling render() now...\n")
                 sys.stderr.flush()
+                
+                # Validate context before rendering
+                sys.stderr.write("DEBUG: Validating context keys...\n")
+                sys.stderr.flush()
+                required_keys = ['common_issues', 'step', 'user_issue', 'deepsearch_issue', 'suggested_rules']
+                for key in required_keys:
+                    if key not in context:
+                        sys.stderr.write(f"WARNING: Missing context key: {key}\n")
+                        sys.stderr.flush()
+                        context[key] = None if key != 'common_issues' else []
+                
+                sys.stderr.write("DEBUG: Context validated, calling render()...\n")
+                sys.stderr.flush()
                 result = render(request, "commander/home.html", context)
                 sys.stderr.write("DEBUG: render() completed successfully\n")
+                sys.stderr.flush()
+                
+                # Ensure result is a valid HttpResponse
+                if result is None:
+                    sys.stderr.write("ERROR: render() returned None\n")
+                    sys.stderr.flush()
+                    return HttpResponse("Internal Server Error", status=500)
+                
+                sys.stderr.write(f"DEBUG: Returning response with status: {result.status_code}\n")
                 sys.stderr.flush()
                 return result
             except Exception as render_exc:
                 error_tb = traceback.format_exc()
-                sys.stderr.write(f"ERROR: render() raised exception: {render_exc}\n")
+                sys.stderr.write("=" * 80 + "\n")
+                sys.stderr.write("ERROR: render() raised exception\n")
+                sys.stderr.write("=" * 80 + "\n")
+                sys.stderr.write(f"Exception Type: {type(render_exc).__name__}\n")
+                sys.stderr.write(f"Exception Message: {str(render_exc)}\n")
+                sys.stderr.write("\nFull Traceback:\n")
                 sys.stderr.write(error_tb)
+                sys.stderr.write("=" * 80 + "\n")
                 sys.stderr.flush()
                 print(f"ERROR: render() raised exception: {render_exc}")
                 traceback.print_exc()
@@ -501,6 +529,9 @@ def home(request):
             sys.stderr.write("=" * 80 + "\n")
             sys.stderr.write(f"Exception Type: {type(render_error).__name__}\n")
             sys.stderr.write(f"Exception Message: {str(render_error)}\n")
+            sys.stderr.write(f"Request Method: {request.method}\n")
+            sys.stderr.write(f"Request Path: {request.path}\n")
+            sys.stderr.write(f"User Agent: {request.META.get('HTTP_USER_AGENT', 'Unknown')}\n")
             sys.stderr.write("\nFull Traceback:\n")
             sys.stderr.write(error_traceback)
             sys.stderr.write("=" * 80 + "\n")
