@@ -12,7 +12,12 @@ MODEL_NAME = "gpt-4o-mini"  # Using GPT-4o-mini for cost efficiency
 if not API_KEY:
     raise ValueError("OPENAI_API_KEY environment variable is not set")
 
-client = OpenAI(api_key=API_KEY)
+# Create client with timeout settings
+client = OpenAI(
+    api_key=API_KEY,
+    timeout=60.0,  # 60 second timeout for individual API calls
+    max_retries=2  # Retry up to 2 times on failure
+)
 
 
 def generate_text(prompt: str, temperature: float = 0.7, max_tokens: int = 2048) -> str:
@@ -25,6 +30,7 @@ def generate_text(prompt: str, temperature: float = 0.7, max_tokens: int = 2048)
             ],
             temperature=temperature,
             max_tokens=max_tokens,
+            timeout=60.0,  # 60 second timeout for this specific call
         )
         
         if not response.choices or len(response.choices) == 0:
