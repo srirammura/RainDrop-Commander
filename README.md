@@ -20,6 +20,7 @@ pip install -r requirements.txt
 DJANGO_SECRET_KEY=your-secret-key-here
 OPENAI_API_KEY=your-openai-api-key-here
 DEBUG=True
+ALLOWED_HOSTS=localhost
 ```
 
 3. Run migrations (if needed):
@@ -37,25 +38,50 @@ python manage.py collectstatic --noinput
 python manage.py runserver
 ```
 
-## Deployment on Render
+## Deployment on Render (Docker)
+
+The application is dockerized for consistent deployment across environments.
+
+### Using Docker on Render:
 
 1. Push your code to GitHub
 
 2. In Render dashboard:
-   - Create a new Web Service
+   - Create a new **Web Service**
+   - Select **"Docker"** as the environment (not Python)
    - Connect your GitHub repository
-   - Use these settings:
-     - **Build Command**: `pip install -r requirements.txt && python manage.py collectstatic --noinput`
-     - **Start Command**: `gunicorn raindrop_commander.wsgi:application`
-     - **Environment**: Python 3
+   - Render will automatically detect the `Dockerfile`
 
 3. Set environment variables in Render:
-   - `DJANGO_SECRET_KEY`: Generate a secure secret key
+   - `DJANGO_SECRET_KEY`: Generate using `python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"`
    - `OPENAI_API_KEY`: Your OpenAI API key
    - `DEBUG`: Set to `False` for production
    - `ALLOWED_HOSTS`: Your Render service URL (e.g., `raindrop-commander.onrender.com`)
+   - `PORT`: Set to `8000` (or let Render auto-assign)
 
 4. Deploy!
+
+### Local Docker Testing:
+
+```bash
+# Build the image
+docker build -t raindrop-commander .
+
+# Run the container
+docker run -p 8000:8000 \
+  -e DJANGO_SECRET_KEY=your-secret-key \
+  -e OPENAI_API_KEY=your-api-key \
+  -e DEBUG=False \
+  -e ALLOWED_HOSTS=localhost \
+  raindrop-commander
+```
+
+### Alternative: Non-Docker Deployment
+
+If you prefer the original Python deployment method, you can still use:
+- **Build Command**: `pip install -r requirements.txt && python manage.py collectstatic --noinput`
+- **Start Command**: `gunicorn raindrop_commander.wsgi:application --bind 0.0.0.0:$PORT`
+- **Environment**: Python 3.9
 
 ## Environment Variables
 
