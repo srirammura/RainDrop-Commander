@@ -34,8 +34,15 @@ def home(request):
         return HttpResponse(status=200)
     
     # Force output to stderr (which Render captures) immediately
-    sys.stderr.write(f"DEBUG: home() view called - Method: {request.method}, Path: {request.path}\n")
+    user_agent = request.META.get('HTTP_USER_AGENT', 'Unknown')
+    sys.stderr.write(f"DEBUG: home() view called - Method: {request.method}, Path: {request.path}, User-Agent: {user_agent}\n")
     sys.stderr.flush()
+    
+    # Handle health checks and monitoring requests more gracefully
+    if 'Go-http-client' in user_agent or 'health' in request.path.lower():
+        sys.stderr.write("DEBUG: Detected health check request, returning simple response\n")
+        sys.stderr.flush()
+        return HttpResponse("OK", status=200)
     
     # Wrap everything in a try-except to ensure we always return a response
     try:
@@ -437,6 +444,14 @@ def home(request):
             
             sys.stderr.write("DEBUG: Context built successfully, attempting to render template\n")
             sys.stderr.flush()
+            
+            # Check if this is a health check request before expensive template rendering
+            user_agent = request.META.get('HTTP_USER_AGENT', '')
+            if 'Go-http-client' in user_agent:
+                sys.stderr.write("DEBUG: Health check detected during render, returning early\n")
+                sys.stderr.flush()
+                return HttpResponse("OK", status=200)
+            
             print(f"DEBUG: Context built successfully, attempting to render template")
             # Force flush stdout to ensure print is visible
             import sys as sys_module
