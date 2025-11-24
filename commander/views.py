@@ -16,6 +16,11 @@ import json
 from datetime import datetime
 
 
+def health_check(request):
+    """Simple health check endpoint for Render."""
+    return HttpResponse("OK", status=200)
+
+
 def home(request):
     """Main view - Step-by-step DeepSearch workflow with Commander."""
     import sys
