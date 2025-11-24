@@ -328,10 +328,21 @@ def home(request):
                 rule["user_rejected"] = True
         
         # Show all non-rejected rules in rules_review
-        display_rules = [r for r in suggested_rules if not r.get("user_rejected", False)]
+        display_rules = [r for r in suggested_rules if not r.get("user_rejected", False)] if isinstance(suggested_rules, list) else []
         
-        # Context
+        # Context - ensure all variables are properly initialized
         display_user_issue = None if step == "issue_input" else user_issue
+        
+        # Ensure deepsearch_issue is None if not set
+        if deepsearch_issue is None:
+            deepsearch_issue = None
+        
+        # Ensure current_example is None if not set
+        if current_example is None:
+            current_example = None
+        
+        # Calculate total_rules safely
+        total_rules = len([r for r in suggested_rules if isinstance(suggested_rules, list) and not r.get("user_rejected", False)]) if isinstance(suggested_rules, list) else 0
         
         context = {
             "common_issues": common_issues,
@@ -341,14 +352,19 @@ def home(request):
             "current_example_index": current_index,
             "current_example": current_example,
             "total_examples": total_examples,
-            "example_labels": example_labels,
+            "example_labels": example_labels if example_labels else {},
             "step": step,
-            "progress": (len(example_labels) / total_examples * 100) if total_examples > 0 else 0,
-            "deployed_rules": deployed_rules,
+            "progress": (len(example_labels) / total_examples * 100) if total_examples > 0 and example_labels else 0,
+            "deployed_rules": deployed_rules if deployed_rules else [],
             "is_searching": is_searching,
             "is_generating_rules": is_generating_rules,
-            "total_rules": len([r for r in suggested_rules if not r.get("user_rejected", False)]),
+            "total_rules": total_rules,
         }
+        
+        # Reset error count on successful request
+        if "error_count" in request.session:
+            request.session["error_count"] = 0
+            request.session.modified = True
         
         return render(request, "commander/home.html", context)
     except Exception as e:
@@ -363,19 +379,40 @@ def home(request):
         print(error_traceback)
         print("=" * 80)
         
-        # Log to file as well
-        with open("/tmp/django_error.log", "a") as f:
-            f.write(f"\n{'='*80}\n")
-            f.write(f"ERROR at {datetime.now()}\n")
-            f.write(f"{'='*80}\n")
-            f.write(f"Exception Type: {type(e).__name__}\n")
-            f.write(f"Exception Message: {str(e)}\n")
-            f.write(f"\nFull Traceback:\n{error_traceback}\n")
-            f.write(f"{'='*80}\n\n")
+        # Log to file as well (handle permission errors in production)
+        try:
+            with open("/tmp/django_error.log", "a") as f:
+                f.write(f"\n{'='*80}\n")
+                f.write(f"ERROR at {datetime.now()}\n")
+                f.write(f"{'='*80}\n")
+                f.write(f"Exception Type: {type(e).__name__}\n")
+                f.write(f"Exception Message: {str(e)}\n")
+                f.write(f"\nFull Traceback:\n{error_traceback}\n")
+                f.write(f"{'='*80}\n\n")
+        except Exception as log_error:
+            print(f"Could not write to error log: {log_error}")
         
-        # Return a simple error page or redirect
+        # Prevent infinite redirect loops
+        error_count = request.session.get("error_count", 0)
+        if error_count > 2:
+            # Too many errors, return a simple error response instead of redirecting
+            from django.http import HttpResponse
+            return HttpResponse(
+                f"<html><body><h1>Error</h1><p>An error occurred. Please refresh the page.</p><p>Error: {str(e)}</p></body></html>",
+                status=500
+            )
+        
+        # Reset session to safe state
         request.session["error_message"] = f"An error occurred: {str(e)}"
+        request.session["error_count"] = error_count + 1
         request.session["user_issue"] = None
         request.session["current_example_index"] = -2
+        request.session["generated_examples"] = None
+        request.session["generated_rules"] = None
+        request.session["example_labels"] = {}
+        request.session["searching"] = False
+        request.session["generating_rules"] = False
         request.session.modified = True
+        
+        # Only redirect if we haven't hit the error limit
         return redirect("home")
