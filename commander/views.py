@@ -532,44 +532,43 @@ def home(request):
             sys.stderr.write(f"Could not write to error log: {log_error}\n")
             sys.stderr.flush()
         
-        # Prevent infinite redirect loops
-        error_count = request.session.get("error_count", 0)
-        sys.stderr.write(f"DEBUG: Error count: {error_count}\n")
+        # Always return an error response instead of redirecting to prevent loops
+        # This ensures we always return something, even if there's an error
+        sys.stderr.write("DEBUG: Returning error response (always return, never redirect)\n")
         sys.stderr.flush()
         
-        if error_count > 2:
-            # Too many errors, return a simple error response instead of redirecting
-            from django.http import HttpResponse
-            sys.stderr.write("DEBUG: Returning error response (too many errors)\n")
-            sys.stderr.flush()
-            return HttpResponse(
-                f"<html><body><h1>Error</h1><p>An error occurred. Please refresh the page.</p><p>Error: {str(e)}</p><pre>{error_traceback}</pre></body></html>",
-                status=500
-            )
-        
-        # Reset session to safe state
+        # Try to update error count, but don't fail if session is broken
         try:
-            request.session["error_message"] = f"An error occurred: {str(e)}"
-            request.session["error_count"] = error_count + 1
-            request.session["user_issue"] = None
-            request.session["current_example_index"] = -2
-            request.session["generated_examples"] = None
-            request.session["generated_rules"] = None
-            request.session["example_labels"] = {}
-            request.session["searching"] = False
-            request.session["generating_rules"] = False
+            error_count = request.session.get("error_count", 0)
+            request.session["error_count"] = min(error_count + 1, 10)  # Cap at 10
             request.session.modified = True
-            sys.stderr.write("DEBUG: Session reset, redirecting\n")
-            sys.stderr.flush()
-        except Exception as session_error:
-            sys.stderr.write(f"ERROR updating session: {session_error}\n")
-            sys.stderr.flush()
-            # If session update fails, just return error response
-            from django.http import HttpResponse
-            return HttpResponse(
-                f"<html><body><h1>Error</h1><p>An error occurred.</p><p>Error: {str(e)}</p><p>Session Error: {str(session_error)}</p><pre>{error_traceback}</pre></body></html>",
-                status=500
-            )
+        except Exception:
+            pass  # Ignore session errors
         
-        # Only redirect if we haven't hit the error limit
-        return redirect("home")
+        # Return a user-friendly error page
+        error_html = f"""<html>
+<head>
+    <title>Error - RainDrop Commander</title>
+    <style>
+        body {{ font-family: 'Inter', Arial, sans-serif; padding: 40px; background: #1a1a1a; color: #bfdbfe; }}
+        h1 {{ color: #ef4444; }}
+        a {{ color: #60a5fa; text-decoration: none; }}
+        a:hover {{ text-decoration: underline; }}
+        pre {{ background: #0d0d0d; padding: 15px; overflow-x: auto; font-size: 12px; border: 2px solid #60a5fa; }}
+        details {{ margin-top: 20px; }}
+        summary {{ cursor: pointer; color: #94a3b8; padding: 10px; background: #0d0d0d; }}
+    </style>
+</head>
+<body>
+    <h1>Application Error</h1>
+    <p>An error occurred while processing your request. Please try again.</p>
+    <p><strong>Error:</strong> {str(e)}</p>
+    <p><a href="/">← Return to Homepage</a></p>
+    <details>
+        <summary>Technical Details (Click to expand)</summary>
+        <pre>{error_traceback}</pre>
+    </details>
+</body>
+</html>"""
+        
+        return HttpResponse(error_html, status=500)
