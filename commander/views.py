@@ -397,20 +397,28 @@ def home(request):
             print(f"DEBUG: Context built successfully, attempting to render template")
             
             # Reset error count on successful request
+            sys.stderr.write("DEBUG: About to update session\n")
+            sys.stderr.flush()
             try:
                 if "error_count" in request.session:
+                    sys.stderr.write("DEBUG: Resetting error_count in session\n")
+                    sys.stderr.flush()
                     request.session["error_count"] = 0
                     request.session.modified = True
                 sys.stderr.write("DEBUG: Session updated successfully\n")
                 sys.stderr.flush()
             except Exception as session_err:
+                error_tb = traceback.format_exc()
                 sys.stderr.write(f"WARNING: Session update failed: {session_err}\n")
+                sys.stderr.write(error_tb)
                 sys.stderr.flush()
                 # Continue anyway
             
             sys.stderr.write("DEBUG: About to call render()\n")
             sys.stderr.flush()
             try:
+                sys.stderr.write("DEBUG: Calling render() now...\n")
+                sys.stderr.flush()
                 result = render(request, "commander/home.html", context)
                 sys.stderr.write("DEBUG: render() completed successfully\n")
                 sys.stderr.flush()
