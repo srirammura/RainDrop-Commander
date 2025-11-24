@@ -331,6 +331,15 @@ def home(request):
             if not isinstance(suggested_rules, list):
                 suggested_rules = []
             for rule in suggested_rules:
+                # Ensure rule is a dict
+                if not isinstance(rule, dict):
+                    continue
+                # Ensure rule has required keys
+                if "id" not in rule:
+                    rule["id"] = f"rule_{id(rule)}"
+                if "status" not in rule:
+                    rule["status"] = "pending"
+                    
                 if rule.get("status") != "audited":
                     examples_for_audit = labeled_examples.copy()
                     examples_for_audit.append({
@@ -373,7 +382,16 @@ def home(request):
                 rule["user_rejected"] = True
         
         # Show all non-rejected rules in rules_review
-        display_rules = [r for r in suggested_rules if not r.get("user_rejected", False)] if isinstance(suggested_rules, list) else []
+        # Ensure all rules are dicts with required keys
+        display_rules = []
+        if isinstance(suggested_rules, list):
+            for r in suggested_rules:
+                if not isinstance(r, dict):
+                    continue
+                if "id" not in r:
+                    r["id"] = f"rule_{id(r)}"
+                if not r.get("user_rejected", False):
+                    display_rules.append(r)
         
         # Context - ensure all variables are properly initialized
         display_user_issue = None if step == "issue_input" else user_issue
