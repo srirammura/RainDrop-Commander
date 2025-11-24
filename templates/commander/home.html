@@ -367,11 +367,12 @@
                         <!-- Left: Rules List (showing only current rule) -->
                         <div class="rules-list">
                             {% for rule in suggested_rules %}
+                            {% if rule.id and rule.description %}
                             <div class="rule-card" data-rule-id="{{ rule.id }}" {% if rule.deployed %}data-deployed="true" style="opacity: 0.6;"{% endif %}>
                                 <div class="rule-header">
                                     <h3>Rule {{ forloop.counter }}: {{ rule.description }}</h3>
                                     <div class="rule-example">
-                                        <strong>Example:</strong> "{{ rule.example }}"
+                                        <strong>Example:</strong> "{{ rule.example|default:'' }}"
                                     </div>
                                 </div>
                                 
@@ -595,11 +596,13 @@
         
         // Store audit results for JavaScript access
         const auditResults = {};
-        {% for rule in suggested_rules %}
-            {% if rule.audit_result_json %}
-            auditResults['{{ rule.id }}'] = {{ rule.audit_result_json|safe }};
-            {% endif %}
-        {% endfor %}
+        {% if suggested_rules %}
+            {% for rule in suggested_rules %}
+                {% if rule.id and rule.audit_result_json %}
+                auditResults['{{ rule.id }}'] = {{ rule.audit_result_json|safe }};
+                {% endif %}
+            {% endfor %}
+        {% endif %}
 
         function showRuleDetails(ruleId) {
             const modal = document.getElementById('ruleModal');
