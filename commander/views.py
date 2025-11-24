@@ -182,8 +182,9 @@ def home(request):
         
         print(f"DEBUG: Step determination - is_searching={is_searching}, is_generating_rules={is_generating_rules}, current_index={current_index}, user_issue={user_issue is not None}, generated_examples={generated_examples is not None}")
         
-        # Check if searching (loading examples)
-        if is_searching and current_index == -1:
+        try:
+            # Check if searching (loading examples)
+            if is_searching and current_index == -1:
             step = "searching"
             loading_screen_shown = request.session.get("loading_screen_shown", False)
             if not loading_screen_shown:
@@ -260,21 +261,26 @@ def home(request):
             if deepsearch_issue and deepsearch_issue.get("examples") and current_index < len(deepsearch_issue["examples"]):
                 current_example = deepsearch_issue["examples"][current_index]
         
-        # Show rules review
-        elif current_index == -1:
-            # Get fresh generated_rules from session
-            generated_rules = request.session.get("generated_rules")
-            if generated_rules and len(generated_rules) > 0:
-                # Rebuild suggested_rules from generated_rules to ensure it's up to date
-                suggested_rules = generated_rules
-                step = "rules_review"
-                print(f"DEBUG: Showing rules review - {len(suggested_rules)} rules available")
-            else:
-                # No rules yet, might still be generating
-                if is_generating_rules:
-                    step = "generating_rules"
+            # Show rules review
+            elif current_index == -1:
+                # Get fresh generated_rules from session
+                generated_rules = request.session.get("generated_rules")
+                if generated_rules and len(generated_rules) > 0:
+                    # Rebuild suggested_rules from generated_rules to ensure it's up to date
+                    suggested_rules = generated_rules
+                    step = "rules_review"
+                    print(f"DEBUG: Showing rules review - {len(suggested_rules)} rules available")
                 else:
-                    step = "issue_input"
+                    # No rules yet, might still be generating
+                    if is_generating_rules:
+                        step = "generating_rules"
+                    else:
+                        step = "issue_input"
+        except Exception as step_error:
+            print(f"ERROR in step determination: {step_error}")
+            import traceback
+            traceback.print_exc()
+            step = "issue_input"  # Fallback to safe state
         
         # Build labeled examples and audit rules
         if step == "rules_review":
@@ -344,29 +350,40 @@ def home(request):
         # Calculate total_rules safely
         total_rules = len([r for r in suggested_rules if isinstance(suggested_rules, list) and not r.get("user_rejected", False)]) if isinstance(suggested_rules, list) else 0
         
-        context = {
-            "common_issues": common_issues,
-            "user_issue": display_user_issue,
-            "deepsearch_issue": deepsearch_issue,
-            "suggested_rules": display_rules,
-            "current_example_index": current_index,
-            "current_example": current_example,
-            "total_examples": total_examples,
-            "example_labels": example_labels if example_labels else {},
-            "step": step,
-            "progress": (len(example_labels) / total_examples * 100) if total_examples > 0 and example_labels else 0,
-            "deployed_rules": deployed_rules if deployed_rules else [],
-            "is_searching": is_searching,
-            "is_generating_rules": is_generating_rules,
-            "total_rules": total_rules,
-        }
+        print(f"DEBUG: Building context - step={step}, total_examples={total_examples}, total_rules={total_rules}, display_rules_count={len(display_rules)}")
         
-        # Reset error count on successful request
-        if "error_count" in request.session:
-            request.session["error_count"] = 0
-            request.session.modified = True
-        
-        return render(request, "commander/home.html", context)
+        try:
+            context = {
+                "common_issues": common_issues,
+                "user_issue": display_user_issue,
+                "deepsearch_issue": deepsearch_issue,
+                "suggested_rules": display_rules,
+                "current_example_index": current_index,
+                "current_example": current_example,
+                "total_examples": total_examples,
+                "example_labels": example_labels if example_labels else {},
+                "step": step,
+                "progress": (len(example_labels) / total_examples * 100) if total_examples > 0 and example_labels else 0,
+                "deployed_rules": deployed_rules if deployed_rules else [],
+                "is_searching": is_searching,
+                "is_generating_rules": is_generating_rules,
+                "total_rules": total_rules,
+            }
+            
+            print(f"DEBUG: Context built successfully, attempting to render template")
+            
+            # Reset error count on successful request
+            if "error_count" in request.session:
+                request.session["error_count"] = 0
+                request.session.modified = True
+            
+            return render(request, "commander/home.html", context)
+        except Exception as render_error:
+            print(f"ERROR during template rendering: {render_error}")
+            import traceback
+            traceback.print_exc()
+            # Re-raise to be caught by outer exception handler
+            raise
     except Exception as e:
         import traceback
         error_traceback = traceback.format_exc()
