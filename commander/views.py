@@ -390,8 +390,11 @@ def home(request):
             
             return render(request, "commander/home.html", context)
         except Exception as render_error:
+            error_traceback = traceback.format_exc()
+            sys.stderr.write(f"ERROR during template rendering: {render_error}\n")
+            sys.stderr.write(error_traceback)
+            sys.stderr.flush()
             print(f"ERROR during template rendering: {render_error}")
-            import traceback
             traceback.print_exc()
             # Re-raise to be caught by outer exception handler
             raise
