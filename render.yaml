@@ -13,5 +13,5 @@ services:
         sync: false  # Set this in Render dashboard
       - key: DEBUG
         value: False
-    healthCheckPath: /
+    healthCheckPath: /health
 

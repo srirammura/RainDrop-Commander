@@ -1,5 +1,5 @@
 from django.shortcuts import render, redirect
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.core.serializers.json import DjangoJSONEncoder
 from .forms import RuleAuditForm
 from .services.commander_agent import CommanderAgent
@@ -20,6 +20,12 @@ def home(request):
     """Main view - Step-by-step DeepSearch workflow with Commander."""
     import sys
     import traceback
+    
+    # Handle HEAD requests (health checks) quickly
+    if request.method == "HEAD":
+        sys.stderr.write("DEBUG: HEAD request received, returning 200\n")
+        sys.stderr.flush()
+        return HttpResponse(status=200)
     
     # Force output to stderr (which Render captures) immediately
     sys.stderr.write("DEBUG: home() view called\n")
