@@ -375,6 +375,8 @@ def home(request):
         print(f"DEBUG: Building context - step={step}, total_examples={total_examples}, total_rules={total_rules}, display_rules_count={len(display_rules)}")
         
         try:
+            sys.stderr.write("DEBUG: Creating context dictionary\n")
+            sys.stderr.flush()
             context = {
                 "common_issues": common_issues,
                 "user_issue": display_user_issue,
@@ -391,10 +393,14 @@ def home(request):
                 "is_generating_rules": is_generating_rules,
                 "total_rules": total_rules,
             }
+            sys.stderr.write("DEBUG: Context dictionary created\n")
+            sys.stderr.flush()
             
             sys.stderr.write("DEBUG: Context built successfully, attempting to render template\n")
             sys.stderr.flush()
             print(f"DEBUG: Context built successfully, attempting to render template")
+            sys.stderr.write("DEBUG: Print statement executed, continuing...\n")
+            sys.stderr.flush()
             
             # Reset error count on successful request
             sys.stderr.write("DEBUG: About to update session\n")
@@ -433,8 +439,14 @@ def home(request):
                 raise
         except Exception as render_error:
             error_traceback = traceback.format_exc()
-            sys.stderr.write(f"ERROR during template rendering: {render_error}\n")
+            sys.stderr.write("=" * 80 + "\n")
+            sys.stderr.write("ERROR IN INNER TRY BLOCK (context/render):\n")
+            sys.stderr.write("=" * 80 + "\n")
+            sys.stderr.write(f"Exception Type: {type(render_error).__name__}\n")
+            sys.stderr.write(f"Exception Message: {str(render_error)}\n")
+            sys.stderr.write("\nFull Traceback:\n")
             sys.stderr.write(error_traceback)
+            sys.stderr.write("=" * 80 + "\n")
             sys.stderr.flush()
             print(f"ERROR during template rendering: {render_error}")
             traceback.print_exc()
