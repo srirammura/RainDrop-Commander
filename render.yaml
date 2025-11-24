@@ -3,7 +3,7 @@ services:
     name: raindrop-commander
     env: python
     buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
-    startCommand: gunicorn raindrop_commander.wsgi:application
+    startCommand: gunicorn raindrop_commander.wsgi:application --bind 0.0.0.0:$PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.18

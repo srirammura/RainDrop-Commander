@@ -134,7 +134,7 @@
                             <div class="portfolio-card" style="background: #2d2d2d; border: 3px solid #60a5fa; border-radius: 0; padding: 35px; box-shadow: 4px 4px 0px #0d0d0d, inset 0 0 0 1px #60a5fa;">
                                 <div style="display: flex; align-items: flex-start; gap: 25px; margin-bottom: 25px; flex-wrap: wrap;">
                                     <div class="portfolio-photo" style="width: 140px; height: 140px; border-radius: 0; border: 3px solid #60a5fa; overflow: hidden; flex-shrink: 0; box-shadow: 3px 3px 0px #0d0d0d; background: #1a1a1a; display: flex; align-items: center; justify-content: center;">
-                                        <img src="{% static 'commander/images/profile.jpg' %}" alt="Sriram Muralidharan" style="width: 100%; height: 100%; object-fit: cover; display: block;" onerror="this.style.display='none'; this.parentElement.innerHTML='<span style=\'color: #60a5fa; font-size: 3rem;\'>👤</span>';">
+                                        <div style="width: 100%; height: 100%; background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%); display: flex; align-items: center; justify-content: center; font-size: 3rem; color: white;">👤</div>
                                     </div>
                                     <div style="flex: 1; min-width: 250px;">
                                         <h3 style="color: #60a5fa; font-size: 1.75rem; font-weight: 700; margin-bottom: 10px; text-shadow: 2px 2px 0px #0d0d0d; line-height: 1.2;">Sriram Muralidharan</h3>
@@ -358,7 +358,7 @@
                         <p class="subtitle">Commander has audited each rule. Review the scores and deploy or reject.</p>
                         {% if total_rules > 0 %}
                         <p class="subtitle" style="margin-top: 10px; color: #60a5fa; font-weight: 600;">
-                            Rule {{ current_rule_index|add:1 }} of {{ total_rules }}
+                            {{ total_rules }} Rule{{ total_rules|pluralize }} to Review
                         </p>
                         {% endif %}
                     </div>
@@ -369,7 +369,7 @@
                             {% for rule in suggested_rules %}
                             <div class="rule-card" data-rule-id="{{ rule.id }}" {% if rule.deployed %}data-deployed="true" style="opacity: 0.6;"{% endif %}>
                                 <div class="rule-header">
-                                    <h3>Rule {{ current_rule_index|add:1 }}: {{ rule.description }}</h3>
+                                    <h3>Rule {{ forloop.counter }}: {{ rule.description }}</h3>
                                     <div class="rule-example">
                                         <strong>Example:</strong> "{{ rule.example }}"
                                     </div>
@@ -472,25 +472,6 @@
                                     <button class="btn-details" disabled>📋 Details (Loading...)</button>
                                     {% endif %}
                                 </div>
-                                
-                                <!-- Navigation Buttons -->
-                                <div class="rule-navigation" style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center; padding-top: 20px; border-top: 2px solid #3d3d3d;">
-                                    <form method="post" style="display: inline;">
-                                        {% csrf_token %}
-                                        <button type="submit" name="previous_rule" class="btn-nav" {% if current_rule_index == 0 %}disabled{% endif %}>
-                                            ← Previous Rule
-                                        </button>
-                                    </form>
-                                    <span style="color: #94a3b8; font-size: 0.9rem;">
-                                        {{ current_rule_index|add:1 }} / {{ total_rules }}
-                                    </span>
-                                    <form method="post" style="display: inline;">
-                                        {% csrf_token %}
-                                        <button type="submit" name="next_rule" class="btn-nav" {% if current_rule_index|add:1 >= total_rules %}disabled{% endif %}>
-                                            Next Rule →
-                                        </button>
-                                    </form>
-                                </div>
                             </div>
                             {% endfor %}
                         </div>
@@ -501,7 +482,7 @@
                             {% for rule in suggested_rules %}
                                 {% if rule.audit_result %}
                                 <div class="score-card">
-                                    <h4>Rule {{ current_rule_index|add:1 }}</h4>
+                                    <h4>Rule {{ forloop.counter }}</h4>
                                     
                                     <!-- Final Recommendation -->
                                     <div class="final-recommendation" style="margin-bottom: 15px; padding: 12px; background: {% if rule.audit_result.executive_summary.overall_status == 'APPROVED' %}rgba(96, 165, 250, 0.2){% elif rule.audit_result.executive_summary.overall_status == 'APPROVED_WITH_WARNINGS' %}rgba(245, 158, 11, 0.2){% else %}rgba(239, 68, 68, 0.2){% endif %}; border: 2px solid {% if rule.audit_result.executive_summary.overall_status == 'APPROVED' %}#60a5fa{% elif rule.audit_result.executive_summary.overall_status == 'APPROVED_WITH_WARNINGS' %}#f59e0b{% else %}#ef4444{% endif %}; border-radius: 0; box-shadow: inset 2px 2px 0px #0d0d0d;">
