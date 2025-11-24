@@ -474,6 +474,7 @@
                                     {% endif %}
                                 </div>
                             </div>
+                            {% endif %}
                             {% endfor %}
                         </div>
                         
@@ -481,7 +482,7 @@
                         <div class="scores-sidebar">
                             <h3>Commander Scores</h3>
                             {% for rule in suggested_rules %}
-                                {% if rule.audit_result %}
+                                {% if rule.id and rule.audit_result %}
                                 <div class="score-card">
                                     <h4>Rule {{ forloop.counter }}</h4>
                                     
