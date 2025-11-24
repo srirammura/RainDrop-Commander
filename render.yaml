@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: raindrop-commander
+    env: python
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
+    startCommand: gunicorn raindrop_commander.wsgi:application
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.18
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: OPENAI_API_KEY
+        sync: false  # Set this in Render dashboard
+      - key: DEBUG
+        value: False
+    healthCheckPath: /
+

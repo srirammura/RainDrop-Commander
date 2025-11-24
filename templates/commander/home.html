@@ -1,0 +1,721 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RainDrop DeepSearch Commander</title>
+    <link rel="stylesheet" href="{% static 'commander/css/style.css' %}">
+</head>
+<body>
+    <!-- Top Section - Title Only -->
+    <div class="top-section">
+        <div class="grid-pattern"></div>
+        <div class="container">
+            <div class="title-popup-box">
+                <h1 class="section-title">RainDrop DeepSearch Commander</h1>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="main-content">
+        <div class="container">
+            {% if step == "issue_input" %}
+                <!-- Step 0: Issue Input Form -->
+                <div class="issue-input-stage">
+                    <div class="issue-form-card">
+                        <h2>Describe Your Issue</h2>
+                        <p class="form-subtitle">Tell us what problem you want to detect in your interaction logs</p>
+                        
+                        {% if user_issue %}
+                        <div class="issue-display-in-box" style="margin-bottom: 24px; padding: 16px; background: rgba(96, 165, 250, 0.1); border: 2px solid #60a5fa; border-radius: 0; box-shadow: inset 2px 2px 0px #0d0d0d;">
+                            <p style="margin: 0; color: #bfdbfe; font-size: 0.95rem;"><strong style="color: #60a5fa;">Current Issue:</strong> {{ user_issue }}</p>
+                        </div>
+                        {% endif %}
+                        
+                        <form method="post" class="issue-form">
+                            {% csrf_token %}
+                            <div class="form-group">
+                                <label for="issue_text">Issue Description</label>
+                                <textarea 
+                                    id="issue_text" 
+                                    name="issue_text" 
+                                    rows="4" 
+                                    placeholder="e.g., The assistant fails to search the internet to retrieve documentation"
+                                    required
+                                ></textarea>
+                            </div>
+                            
+                            <div class="common-issues-section">
+                                <p class="common-issues-label">Or select from common issues:</p>
+                                <div class="common-issues-grid">
+                                    {% for issue in common_issues %}
+                                    <button 
+                                        type="button" 
+                                        class="common-issue-btn"
+                                        onclick="fillIssue('{{ issue|escapejs }}')"
+                                    >
+                                        {{ issue }}
+                                    </button>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            
+                            <button type="submit" name="submit_issue" class="btn-submit-issue">
+                                🔍 Search for Examples
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            
+            {% elif step == "searching" %}
+                <!-- Step 0.5: Loading Screen - Examples are being generated -->
+                <div class="searching-stage">
+                    <div class="searching-content">
+                        <div class="searching-spinner"></div>
+                        <h2 class="searching-title">The deep search is searching from millions of interaction logs to find examples of your issue</h2>
+                        <p class="searching-subtitle">This may take a few moments...</p>
+                    </div>
+                    <!-- Auto-refresh to check when generation is complete -->
+                    <script>
+                        // Poll every 1 second to check if examples are ready
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 1000);
+                    </script>
+                </div>
+            
+            {% elif step == "generating_rules" %}
+                <!-- Step 1.5: Rules Generation Loading Screen - Rules are being generated -->
+                <div class="searching-stage">
+                    <div class="searching-content">
+                        <div class="searching-spinner"></div>
+                        <h2 class="searching-title">This might take up to 5 minutes. We are creating rules that you can review in the next page so we understand your issue better.</h2>
+                        <p class="searching-subtitle">Preparing your rules...</p>
+                        
+                        <!-- Expandable description section -->
+                        <div class="expandable-description" style="margin-top: 30px; max-width: 800px; margin-left: auto; margin-right: auto;">
+                            <button class="expand-toggle" onclick="toggleDescription()" style="background: rgba(96, 165, 250, 0.1); border: 2px solid #60a5fa; border-radius: 0; color: #60a5fa; cursor: pointer; font-size: 1rem; font-weight: 600; padding: 14px 24px; width: 100%; text-align: center; box-shadow: 3px 3px 0px #0d0d0d; transition: all 0.1s;">
+                                <span style="display: block; margin-bottom: 4px;">To know more on how we help you get the exact issues</span>
+                                <span id="expand-text" style="color: #bfdbfe; font-size: 0.9rem; font-weight: 500; text-decoration: underline;">Click here to read the description...</span>
+                            </button>
+                            <div id="description-content" style="display: none; margin-top: 20px; padding: 20px; background: rgba(96, 165, 250, 0.1); border: 2px solid #60a5fa; border-radius: 0; text-align: left; line-height: 1.8; box-shadow: inset 2px 2px 0px #0d0d0d;">
+                                <div style="color: #bfdbfe; font-size: 0.95rem;">
+                                    <p style="margin-bottom: 15px;">
+                                        <strong>How RainDrop understands your issue clearly:</strong>
+                                    </p>
+                                    <ol style="margin-left: 20px; margin-bottom: 15px; padding-left: 10px;">
+                                        <li style="margin-bottom: 12px;">
+                                            <strong>Rule Review:</strong> We're generating precise classification rules based on your labeled examples. These rules capture the exact patterns that indicate your issue.
+                                        </li>
+                                        <li style="margin-bottom: 12px;">
+                                            <strong>LLM-Powered Training Data:</strong> Once you approve the rules, we'll pass them to an advanced LLM to generate diverse training example interactions. These examples will represent various scenarios where your issue occurs or doesn't occur.
+                                        </li>
+                                        <li style="margin-bottom: 12px;">
+                                            <strong>Custom Classifier Training:</strong> We'll use these training examples to train a specialized classifier model specifically designed for your issue. This classifier learns to recognize the exact patterns you care about.
+                                        </li>
+                                        <li style="margin-bottom: 12px;">
+                                            <strong>Production Scanning:</strong> The trained classifier will then analyze millions of production interaction logs in real-time, identifying only the interactions that match your specific issue criteria.
+                                        </li>
+                                        <li style="margin-bottom: 12px;">
+                                            <strong>Root Cause Analysis:</strong> You'll receive a curated list of issue-causing interactions with full context. You can dive into log traces, tool calls, and conversation history to understand exactly why the issue is happening and fix it at the source.
+                                        </li>
+                                    </ol>
+                                    <p style="margin-top: 15px; font-style: italic; color: #94a3b8;">
+                                        This approach gives you precision and scale: instead of manually searching through millions of logs, you get exactly the interactions that matter, with full observability to diagnose and resolve issues quickly.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Portfolio Section -->
+                        <div class="portfolio-section" style="margin-top: 40px; max-width: 900px; margin-left: auto; margin-right: auto;">
+                            <div class="portfolio-card" style="background: #2d2d2d; border: 3px solid #60a5fa; border-radius: 0; padding: 35px; box-shadow: 4px 4px 0px #0d0d0d, inset 0 0 0 1px #60a5fa;">
+                                <div style="display: flex; align-items: flex-start; gap: 25px; margin-bottom: 25px; flex-wrap: wrap;">
+                                    <div class="portfolio-photo" style="width: 140px; height: 140px; border-radius: 0; border: 3px solid #60a5fa; overflow: hidden; flex-shrink: 0; box-shadow: 3px 3px 0px #0d0d0d; background: #1a1a1a; display: flex; align-items: center; justify-content: center;">
+                                        <img src="{% static 'commander/images/profile.jpg' %}" alt="Sriram Muralidharan" style="width: 100%; height: 100%; object-fit: cover; display: block;" onerror="this.style.display='none'; this.parentElement.innerHTML='<span style=\'color: #60a5fa; font-size: 3rem;\'>👤</span>';">
+                                    </div>
+                                    <div style="flex: 1; min-width: 250px;">
+                                        <h3 style="color: #60a5fa; font-size: 1.75rem; font-weight: 700; margin-bottom: 10px; text-shadow: 2px 2px 0px #0d0d0d; line-height: 1.2;">Sriram Muralidharan</h3>
+                                        <p style="color: #bfdbfe; font-size: 1.05rem; margin-bottom: 6px; font-weight: 600;">Senior Software Engineer</p>
+                                        <p style="color: #60a5fa; font-size: 0.95rem; margin-bottom: 8px; font-weight: 500;">JLG Industries Inc. • Hagerstown, MD</p>
+                                        <p style="color: #94a3b8; font-size: 0.9rem; margin: 0; font-style: italic;">AI Systems Architect | NLP & Large-Scale Data Engineering</p>
+                                    </div>
+                                </div>
+                                
+                                <div style="border-top: 2px solid #3d3d3d; padding-top: 25px; margin-top: 25px;">
+                                    <h4 style="color: #60a5fa; font-size: 1.1rem; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #60a5fa; padding-bottom: 8px;">Professional Summary</h4>
+                                    <p style="color: #bfdbfe; font-size: 0.95rem; line-height: 1.75; margin-bottom: 25px; text-align: justify;">
+                                        I began in NLP and speech—building multilingual models and real-time services in Python (FastAPI, Django)—then moved into large-scale data engineering. At JLG (Oshkosh), I led the Clearsky SmartFleet platform on Quarkus + Azure Data Explorer (KQL), scaling to 800M+ messages/day. This year I'm leading a conversational AI agent with LangGraph and GPT-o1 so fleet managers can ask for complex telemetry in natural language. My core strength: designing and shipping scalable, production-ready AI systems.
+                                    </p>
+                                    
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin-top: 25px;">
+                                        <div>
+                                            <h4 style="color: #60a5fa; font-size: 1rem; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #60a5fa; padding-bottom: 6px;">Education</h4>
+                                            <div style="margin-bottom: 15px; padding: 12px; background: rgba(96, 165, 250, 0.05); border-left: 3px solid #60a5fa;">
+                                                <p style="color: #bfdbfe; font-size: 0.9rem; font-weight: 600; margin-bottom: 4px;">Master's in Data Science</p>
+                                                <p style="color: #94a3b8; font-size: 0.85rem; margin: 0;">SUNY Buffalo, New York</p>
+                                                <p style="color: #94a3b8; font-size: 0.8rem; margin: 4px 0 0 0;">Aug 2021 – Feb 2023</p>
+                                            </div>
+                                            <div style="padding: 12px; background: rgba(96, 165, 250, 0.05); border-left: 3px solid #60a5fa;">
+                                                <p style="color: #bfdbfe; font-size: 0.9rem; font-weight: 600; margin-bottom: 4px;">B.Tech - Computer Science</p>
+                                                <p style="color: #94a3b8; font-size: 0.85rem; margin: 0;">Amrita University, Coimbatore</p>
+                                                <p style="color: #94a3b8; font-size: 0.8rem; margin: 4px 0 0 0;">Jun 2016 – June 2020</p>
+                                            </div>
+                                        </div>
+                                        
+                                        <div>
+                                            <h4 style="color: #60a5fa; font-size: 1rem; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #60a5fa; padding-bottom: 6px;">Key Expertise</h4>
+                                            <div style="padding: 12px; background: rgba(96, 165, 250, 0.05); border-left: 3px solid #60a5fa;">
+                                                <ul style="color: #bfdbfe; font-size: 0.9rem; line-height: 1.9; margin: 0; padding-left: 20px; list-style-type: none;">
+                                                    <li style="margin-bottom: 6px;">✓ Conversational AI & LangGraph</li>
+                                                    <li style="margin-bottom: 6px;">✓ Large-Scale Data Engineering</li>
+                                                    <li style="margin-bottom: 6px;">✓ NLP & Multilingual Systems</li>
+                                                    <li style="margin-bottom: 6px;">✓ Real-Time Analytics Platforms</li>
+                                                    <li style="margin-bottom: 6px;">✓ Production AI Systems</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div style="margin-top: 25px; padding-top: 25px; border-top: 2px solid #3d3d3d;">
+                                        <h4 style="color: #60a5fa; font-size: 1.1rem; font-weight: 600; margin-bottom: 20px; border-bottom: 2px solid #60a5fa; padding-bottom: 8px;">Work Experience</h4>
+                                        
+                                        <!-- JLG Industries -->
+                                        <div style="margin-bottom: 25px;">
+                                            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; flex-wrap: wrap;">
+                                                <h5 style="color: #60a5fa; font-size: 1rem; font-weight: 600; margin: 0;">Senior Software Engineer</h5>
+                                                <p style="color: #94a3b8; font-size: 0.85rem; margin: 0; font-style: italic;">May 2023 – Present</p>
+                                            </div>
+                                            <p style="color: #bfdbfe; font-size: 0.9rem; font-weight: 500; margin-bottom: 12px;">JLG Industries Inc. • Hagerstown, Maryland</p>
+                                            
+                                            <div style="margin-bottom: 15px;">
+                                                <p style="color: #60a5fa; font-size: 0.9rem; font-weight: 600; margin-bottom: 8px;">Conversational AI Agent (2025–present, pilot)</p>
+                                                <ul style="color: #bfdbfe; font-size: 0.9rem; line-height: 1.8; margin: 0 0 0 20px; padding: 0;">
+                                                    <li style="margin-bottom: 6px;">Leading the development of an integrated conversational AI agentic platform, enabling fleet managers and customers to query IoT and equipment data through natural language prompts</li>
+                                                    <li style="margin-bottom: 6px;">Designed deterministic routing and guardrails: intent classification → MCP selection → whitelisted KQL templates with bounded scan caps; RBAC via company SSO</li>
+                                                    <li style="margin-bottom: 6px;">Architected a LangChain agent that dynamically selects among three MCP servers (mcp.fleet, mcp.asset & mcp.aggregate) built in Quarkus, each executing parameterized KQL queries on Azure Data Explorer</li>
+                                                    <li style="margin-bottom: 6px;">Retrieving insights from over 800M messages/day across 400K assets</li>
+                                                    <li style="margin-bottom: 6px;">Designing intelligent intent classification and parameter extraction pipelines that allow users to seamlessly request analytics, download Excel summaries, or view detailed machine insights</li>
+                                                    <li style="margin-bottom: 6px;">Implemented Redis LangChain semantic caching to optimize query reuse and reduce response latency</li>
+                                                    <li style="margin-bottom: 0;">Built a lightweight model router that defaults to a fast LLM and escalates to OpenAI GPT-o1 LLM for complex analytical reasoning</li>
+                                                </ul>
+                                            </div>
+                                            
+                                            <div>
+                                                <p style="color: #60a5fa; font-size: 0.9rem; font-weight: 600; margin-bottom: 8px;">Global IoT Data Platform (2023–2025)</p>
+                                                <ul style="color: #bfdbfe; font-size: 0.9rem; line-height: 1.8; margin: 0 0 0 20px; padding: 0;">
+                                                    <li style="margin-bottom: 6px;">Designed and delivered Clearsky SmartFleet, a real-time fleet intelligence platform powered by Quarkus and Azure Data Explorer (ADX) backends</li>
+                                                    <li style="margin-bottom: 6px;">Scaled data ingestion from 30M+ to ~800M+ IoT messages/day, enabling instant telemetry insights for fleet managers worldwide</li>
+                                                    <li style="margin-bottom: 6px;">Architected an optimized Diagnostic Trouble Code pipeline resolving long-standing data edge cases and boosting portal adoption by 20%</li>
+                                                    <li style="margin-bottom: 6px;">Led caching and infrastructure optimization initiatives that reduced backend CPU usage from 40% to 10%, significantly improving system throughput and cost efficiency</li>
+                                                    <li style="margin-bottom: 0;">Mentored a team of cloud software engineers, establishing a foundation that now supports the transition toward natural-language-driven analytics</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        
+                                        <div style="border-top: 1px solid #3d3d3d; margin: 20px 0; padding-top: 20px;"></div>
+                                        
+                                        <!-- Electric Hydrogen -->
+                                        <div style="margin-bottom: 25px;">
+                                            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; flex-wrap: wrap;">
+                                                <h5 style="color: #60a5fa; font-size: 1rem; font-weight: 600; margin: 0;">Data Science Intern/Co-Op</h5>
+                                                <p style="color: #94a3b8; font-size: 0.85rem; margin: 0; font-style: italic;">May 2022 – Dec 2022</p>
+                                            </div>
+                                            <p style="color: #bfdbfe; font-size: 0.9rem; font-weight: 500; margin-bottom: 12px;">Electric Hydrogen Co. • San Carlos, California</p>
+                                            <ul style="color: #bfdbfe; font-size: 0.9rem; line-height: 1.8; margin: 0 0 0 20px; padding: 0;">
+                                                <li style="margin-bottom: 6px;">Developed Python analytics package leveraging pandas, NumPy and Dash for real-time data analysis across PostgreSQL and InfluxDB</li>
+                                                <li style="margin-bottom: 6px;">Created APIs with FastAPI that helped identify 4+ bottlenecks and improving process efficiency</li>
+                                                <li style="margin-bottom: 0;">Built scalable data pipelines processing 10k+ data points/minute from industrial sensors using Python, Redis, Docker, GCP (BigQuery, Cloud Functions) implementing streaming architecture with automated data validation</li>
+                                            </ul>
+                                        </div>
+                                        
+                                        <div style="border-top: 1px solid #3d3d3d; margin: 20px 0; padding-top: 20px;"></div>
+                                        
+                                        <!-- Saarthi.ai -->
+                                        <div style="margin-bottom: 25px;">
+                                            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; flex-wrap: wrap;">
+                                                <h5 style="color: #60a5fa; font-size: 1rem; font-weight: 600; margin: 0;">NLP Engineer (Speech & Text)</h5>
+                                                <p style="color: #94a3b8; font-size: 0.85rem; margin: 0; font-style: italic;">June 2020 – Aug 2021</p>
+                                            </div>
+                                            <p style="color: #bfdbfe; font-size: 0.9rem; font-weight: 500; margin-bottom: 12px;">Saarthi.ai (Early stage startup) • Bangalore, India</p>
+                                            <ul style="color: #bfdbfe; font-size: 0.9rem; line-height: 1.8; margin: 0 0 0 20px; padding: 0;">
+                                                <li style="margin-bottom: 6px;">Led & Developed custom NLU pipelines for domain-specific language understanding, creating and training datasets of 20k+ annotated utterances with a team of linguists</li>
+                                                <li style="margin-bottom: 6px;">Implemented active learning workflows that improved model accuracy by 15%</li>
+                                                <li style="margin-bottom: 6px;">Deployed conversational AI at scale using RASA framework and transformer models (BERT, RoBERTa) building 250+ chatbot APIs in Django, FastAPI handling 10000+ concurrent requests</li>
+                                                <li style="margin-bottom: 6px;">Achieved 78% intent classification accuracy and 72% entity extraction F1-score for code-mixed Hindi-Tamil conversations through iterative model improvements</li>
+                                                <li style="margin-bottom: 6px;">Built multilingual Text-to-Speech systems using Tacotron2 and FastSpeech architectures with HiFi-GAN vocoders, achieving 3.8 MOS Score for Hindi synthesis and 3.6 for Tamil</li>
+                                                <li style="margin-bottom: 6px;">Reduced character error rate from 18% to 7% through attention alignment optimization and data cleaning</li>
+                                                <li style="margin-bottom: 0;">Optimized model deployment through knowledge distillation and quantization techniques, reducing BERT model size by 60% with only 5% accuracy trade-off, enabling real-time inference on resource-constrained environments</li>
+                                            </ul>
+                                        </div>
+                                        
+                                        <div style="border-top: 1px solid #3d3d3d; margin: 20px 0; padding-top: 20px;"></div>
+                                        
+                                        <!-- HSBC -->
+                                        <div style="margin-bottom: 0;">
+                                            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; flex-wrap: wrap;">
+                                                <h5 style="color: #60a5fa; font-size: 1rem; font-weight: 600; margin: 0;">Software Engineer Intern</h5>
+                                                <p style="color: #94a3b8; font-size: 0.85rem; margin: 0; font-style: italic;">Dec 2019 – Jun 2020</p>
+                                            </div>
+                                            <p style="color: #bfdbfe; font-size: 0.9rem; font-weight: 500; margin-bottom: 12px;">HSBC (Hongkong & Shanghai Banking Corporation) • Bangalore, India</p>
+                                            <ul style="color: #bfdbfe; font-size: 0.9rem; line-height: 1.8; margin: 0 0 0 20px; padding: 0;">
+                                                <li style="margin-bottom: 0;">Built backend services for an internal data-lineage platform (Atlas Visualizer 8.0) using Apache Jena Fuseki (RDF) and REST APIs</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Auto-refresh to check when generation is complete -->
+                    <script>
+                        function toggleDescription() {
+                            const content = document.getElementById('description-content');
+                            const expandText = document.getElementById('expand-text');
+                            const button = document.querySelector('.expand-toggle');
+                            if (content.style.display === 'none') {
+                                content.style.display = 'block';
+                                expandText.textContent = 'Click here to hide description';
+                                if (button) {
+                                    button.style.background = 'rgba(96, 165, 250, 0.15)';
+                                }
+                            } else {
+                                content.style.display = 'none';
+                                expandText.textContent = 'Click here to read the description...';
+                                if (button) {
+                                    button.style.background = 'rgba(96, 165, 250, 0.1)';
+                                }
+                            }
+                        }
+                        
+                        // Poll every 1 second to check if rules are ready
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 1000);
+                    </script>
+                </div>
+            
+            {% elif step == "labeling_examples" %}
+                <!-- Step 1: Label Examples One at a Time -->
+                <div class="labeling-stage">
+                    {% if user_issue %}
+                    <div class="issue-display-in-box" style="margin-bottom: 24px; padding: 16px; background: rgba(96, 165, 250, 0.1); border: 2px solid #60a5fa; border-radius: 0; box-shadow: inset 2px 2px 0px #0d0d0d; max-width: 800px; margin-left: auto; margin-right: auto;">
+                        <p style="margin: 0; color: #bfdbfe; font-size: 0.95rem; text-align: center;"><strong style="color: #60a5fa;">Issue:</strong> {{ user_issue }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ progress }}%"></div>
+                    </div>
+                    <p class="progress-text">Example {{ current_example_index|add:1 }} of {{ total_examples }}</p>
+                    
+                    {% if current_example %}
+                    <div class="current-example-card">
+                        <div class="interaction-display">
+                            <div class="user-message">
+                                <div class="label">USER</div>
+                                <p>{{ current_example.user }}</p>
+                            </div>
+                            <div class="assistant-message">
+                                <div class="label">ASSISTANT</div>
+                                <p>{{ current_example.assistant }}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="label-actions">
+                            <p class="label-question">Is this a MATCH or NO_MATCH?</p>
+                            <form method="post" class="label-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="example_index" value="{{ current_example_index }}">
+                                <input type="hidden" name="mark_example" value="1">
+                                <div class="label-buttons">
+                                    <button type="submit" name="label" value="MATCH" class="btn-match">
+                                        ✅ MATCH
+                                    </button>
+                                    <button type="submit" name="label" value="NO_MATCH" class="btn-no-match">
+                                        ❌ NO_MATCH
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            
+            {% elif step == "rules_review" %}
+                <!-- Step 2: Review Suggested Rules with Commander Scores -->
+                <div class="rules-review-stage">
+                    {% if user_issue %}
+                    <div class="issue-display-in-box" style="margin-bottom: 24px; padding: 16px; background: rgba(96, 165, 250, 0.1); border: 2px solid #60a5fa; border-radius: 0; box-shadow: inset 2px 2px 0px #0d0d0d; max-width: 900px; margin-left: auto; margin-right: auto;">
+                        <p style="margin: 0; color: #bfdbfe; font-size: 0.95rem; text-align: center;"><strong style="color: #60a5fa;">Issue:</strong> {{ user_issue }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="stage-header">
+                        <h2>📋 Review Suggested Rules</h2>
+                        <p class="subtitle">Commander has audited each rule. Review the scores and deploy or reject.</p>
+                        {% if total_rules > 0 %}
+                        <p class="subtitle" style="margin-top: 10px; color: #60a5fa; font-weight: 600;">
+                            Rule {{ current_rule_index|add:1 }} of {{ total_rules }}
+                        </p>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="review-layout">
+                        <!-- Left: Rules List (showing only current rule) -->
+                        <div class="rules-list">
+                            {% for rule in suggested_rules %}
+                            <div class="rule-card" data-rule-id="{{ rule.id }}" {% if rule.deployed %}data-deployed="true" style="opacity: 0.6;"{% endif %}>
+                                <div class="rule-header">
+                                    <h3>Rule {{ current_rule_index|add:1 }}: {{ rule.description }}</h3>
+                                    <div class="rule-example">
+                                        <strong>Example:</strong> "{{ rule.example }}"
+                                    </div>
+                                </div>
+                                
+                                {% if rule.audit_result %}
+                                <!-- All Three Commander Scores - displayed below rule and example -->
+                                <div class="commander-scores-display" style="margin-top: 15px;">
+                                    <!-- Overfit Score -->
+                                    <div class="score-display-item" style="margin-bottom: 10px; padding: 12px; background: rgba(96, 165, 250, 0.1); border: 2px solid #60a5fa; border-radius: 0; box-shadow: inset 2px 2px 0px #0d0d0d;">
+                                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                                            <span style="font-weight: 600; color: #bfdbfe;">
+                                                Overfit Score:
+                                                <span class="info-icon" title="Measures example diversity and variance. Higher scores (closer to 100) indicate the rule generalizes well beyond the training examples.">ℹ️</span>
+                                            </span>
+                                            <span style="font-size: 1.2rem; font-weight: 700; color: #60a5fa;">
+                                                {% for report in rule.audit_result.reports %}
+                                                    {% if report.tool_name == "Variance/Overfit Detector" %}
+                                                        {% if report.score %}{{ report.score }}/100{% elif report.variance_score %}{{ report.variance_score }}/100{% else %}N/A{% endif %}
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Red Team Score -->
+                                    <div class="score-display-item" style="margin-bottom: 10px; padding: 12px; background: rgba(239, 68, 68, 0.1); border: 2px solid #ef4444; border-radius: 0; box-shadow: inset 2px 2px 0px #0d0d0d;">
+                                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                                            <span style="font-weight: 600; color: #fecaca;">
+                                                Red Team Score:
+                                                <span class="info-icon" title="Tests rule robustness against edge cases and boundary conditions. Higher scores indicate the rule handles tricky inputs well.">ℹ️</span>
+                                            </span>
+                                            <span style="font-size: 1.1rem; font-weight: 700; color: #ef4444;">
+                                                {% for report in rule.audit_result.reports %}
+                                                    {% if report.tool_name == "Synthetic Red Team" %}
+                                                        {% if report.score %}
+                                                            {% if report.score >= 80 %}
+                                                                <span style="color: #60a5fa;">High ({{ report.score }}/100)</span>
+                                                            {% elif report.score >= 60 %}
+                                                                <span style="color: #f59e0b;">Medium ({{ report.score }}/100)</span>
+                                                            {% else %}
+                                                                <span style="color: #ef4444;">Low ({{ report.score }}/100)</span>
+                                                            {% endif %}
+                                                        {% else %}
+                                                            <span style="color: #94a3b8;">N/A</span>
+                                                        {% endif %}
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Boundary Mapping Score -->
+                                    <div class="score-display-item" style="margin-bottom: 10px; padding: 12px; background: rgba(59, 130, 246, 0.1); border: 2px solid #3b82f6; border-radius: 0; box-shadow: inset 2px 2px 0px #0d0d0d;">
+                                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                                            <span style="font-weight: 600; color: #bfdbfe;">
+                                                Boundary Mapping:
+                                                <span class="info-icon" title="Generates examples at the rule's boundaries to help clarify what should and shouldn't match. Shows edge cases for rule refinement.">ℹ️</span>
+                                            </span>
+                                            <span style="font-size: 1.1rem; font-weight: 700; color: #3b82f6;">
+                                                {% for report in rule.audit_result.reports %}
+                                                    {% if report.tool_name == "Semantic Boundary Mapper" %}
+                                                        {% if report.status == "PASS" %}
+                                                            <span style="color: #60a5fa;">{{ report.status }}</span>
+                                                        {% elif report.status == "WARN" %}
+                                                            <span style="color: #f59e0b;">{{ report.status }}</span>
+                                                        {% else %}
+                                                            <span style="color: #ef4444;">{{ report.status }}</span>
+                                                        {% endif %}
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% else %}
+                                <div style="margin-top: 15px; padding: 12px; color: #94a3b8; font-style: italic; background: rgba(148, 163, 184, 0.1); border: 2px solid #64748b; border-radius: 0; box-shadow: inset 2px 2px 0px #0d0d0d;">
+                                    Commander audit in progress...
+                                </div>
+                                {% endif %}
+                                
+                                <div class="rule-actions">
+                                    {% if rule.deployed %}
+                                        <button class="btn-deploy" disabled>✅ Accepted</button>
+                                    {% else %}
+                                    <form method="post" style="display: inline;" class="deploy-form" data-rule-id="{{ rule.id }}">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="deploy_rule" value="{{ rule.id }}">
+                                        <button type="submit" class="btn-deploy" onclick="handleDeploy(event, '{{ rule.id }}')">✅ Accept Rule</button>
+                                    </form>
+                                    {% endif %}
+                                    <form method="post" style="display: inline;" class="reject-form">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="reject_rule" value="{{ rule.id }}">
+                                        <button type="submit" class="btn-reject" onclick="handleReject(event, '{{ rule.id }}')">❌ Reject</button>
+                                    </form>
+                                    {% if rule.audit_result %}
+                                    <button class="btn-details" onclick="showRuleDetails('{{ rule.id }}')">📋 Details</button>
+                                    {% else %}
+                                    <button class="btn-details" disabled>📋 Details (Loading...)</button>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Navigation Buttons -->
+                                <div class="rule-navigation" style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center; padding-top: 20px; border-top: 2px solid #3d3d3d;">
+                                    <form method="post" style="display: inline;">
+                                        {% csrf_token %}
+                                        <button type="submit" name="previous_rule" class="btn-nav" {% if current_rule_index == 0 %}disabled{% endif %}>
+                                            ← Previous Rule
+                                        </button>
+                                    </form>
+                                    <span style="color: #94a3b8; font-size: 0.9rem;">
+                                        {{ current_rule_index|add:1 }} / {{ total_rules }}
+                                    </span>
+                                    <form method="post" style="display: inline;">
+                                        {% csrf_token %}
+                                        <button type="submit" name="next_rule" class="btn-nav" {% if current_rule_index|add:1 >= total_rules %}disabled{% endif %}>
+                                            Next Rule →
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <!-- Right: Commander Scores Sidebar -->
+                        <div class="scores-sidebar">
+                            <h3>Commander Scores</h3>
+                            {% for rule in suggested_rules %}
+                                {% if rule.audit_result %}
+                                <div class="score-card">
+                                    <h4>Rule {{ current_rule_index|add:1 }}</h4>
+                                    
+                                    <!-- Final Recommendation -->
+                                    <div class="final-recommendation" style="margin-bottom: 15px; padding: 12px; background: {% if rule.audit_result.executive_summary.overall_status == 'APPROVED' %}rgba(96, 165, 250, 0.2){% elif rule.audit_result.executive_summary.overall_status == 'APPROVED_WITH_WARNINGS' %}rgba(245, 158, 11, 0.2){% else %}rgba(239, 68, 68, 0.2){% endif %}; border: 2px solid {% if rule.audit_result.executive_summary.overall_status == 'APPROVED' %}#60a5fa{% elif rule.audit_result.executive_summary.overall_status == 'APPROVED_WITH_WARNINGS' %}#f59e0b{% else %}#ef4444{% endif %}; border-radius: 0; box-shadow: inset 2px 2px 0px #0d0d0d;">
+                                        <div style="font-weight: 600; margin-bottom: 5px; color: {% if rule.audit_result.executive_summary.overall_status == 'APPROVED' %}#60a5fa{% elif rule.audit_result.executive_summary.overall_status == 'APPROVED_WITH_WARNINGS' %}#f59e0b{% else %}#ef4444{% endif %};">Recommendation:</div>
+                                        <div style="font-size: 0.95rem; color: #bfdbfe; line-height: 1.5;">
+                                            {{ rule.audit_result.executive_summary.recommendation }}
+                                        </div>
+                                        {% if rule.audit_result.executive_summary.cumulative_score %}
+                                        <div style="margin-top: 8px; font-size: 0.85rem; color: #94a3b8;">
+                                            Overall Score: <strong style="color: #60a5fa;">{{ rule.audit_result.executive_summary.cumulative_score }}/100</strong>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="score-summary">
+                                        {% if rule.audit_result.executive_summary.overall_status == "APPROVED" %}
+                                            <span class="badge badge-approved">✅ APPROVED</span>
+                                        {% elif rule.audit_result.executive_summary.overall_status == "APPROVED_WITH_WARNINGS" %}
+                                            <span class="badge badge-warning">⚠️ WARNINGS</span>
+                                        {% else %}
+                                            <span class="badge badge-rejected">🛑 REJECTED</span>
+                                        {% endif %}
+                                        
+                                        <!-- Three Tool Scores -->
+                                        <div class="three-scores">
+                                            {% for report in rule.audit_result.reports %}
+                                                {% if report.tool_name == "Synthetic Red Team" %}
+                                                    <div class="tool-score">
+                                                        <div class="tool-score-label">
+                                                            Red Team
+                                                            <span class="info-icon" title="Tests rule robustness against edge cases and boundary conditions. Higher scores indicate the rule handles tricky inputs well.">ℹ️</span>
+                                                        </div>
+                                                        <div class="tool-score-value">
+                                                            {% if report.score %}{{ report.score }}/100{% else %}N/A{% endif %}
+                                                        </div>
+                                                    </div>
+                                                {% elif report.tool_name == "Variance/Overfit Detector" %}
+                                                    <div class="tool-score">
+                                                        <div class="tool-score-label">
+                                                            Overfit
+                                                            <span class="info-icon" title="Measures example diversity and variance. Higher scores (closer to 100) indicate the rule generalizes well beyond the training examples.">ℹ️</span>
+                                                        </div>
+                                                        <div class="tool-score-value">
+                                                            {% if report.score %}{{ report.score }}/100{% else %}{{ report.status }}{% endif %}
+                                                        </div>
+                                                    </div>
+                                                {% elif report.tool_name == "Semantic Boundary Mapper" %}
+                                                    <div class="tool-score">
+                                                        <div class="tool-score-label">
+                                                            Boundary
+                                                            <span class="info-icon" title="Generates examples at the rule's boundaries to help clarify what should and shouldn't match. Shows edge cases for rule refinement.">ℹ️</span>
+                                                        </div>
+                                                        <div class="tool-score-value">{{ report.status }}</div>
+                                                    </div>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                        
+                                        <div class="score-breakdown">
+                                            <div>Errors: {{ rule.audit_result.executive_summary.critical_issues_count }}</div>
+                                            <div>Warnings: {{ rule.audit_result.executive_summary.warnings_count }}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Deploy Loading Overlay -->
+    <div id="deployLoadingOverlay" class="deploy-loading-overlay">
+        <div class="deploy-loading-content">
+            <div class="deploy-loading-spinner"></div>
+            <div class="deploy-loading-text">The rule is generating examples to train the classifier specific for your issue</div>
+            <div class="deploy-loading-subtext">Please wait...</div>
+        </div>
+    </div>
+    
+    <script>
+        // Ensure overlay is hidden on page load (in case of redirect)
+        window.addEventListener('DOMContentLoaded', function() {
+            const overlay = document.getElementById('deployLoadingOverlay');
+            if (overlay) {
+                overlay.classList.remove('active');
+            }
+        });
+    </script>
+
+    <!-- Rule Details Modal -->
+    <div id="ruleModal" class="modal" onclick="if(event.target === this) closeRuleModal()">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <span class="close" onclick="closeRuleModal()">&times;</span>
+            <div id="ruleModalBody"></div>
+        </div>
+    </div>
+
+    <script>
+        // Handle issue input form
+        function fillIssue(issueText) {
+            document.getElementById('issue_text').value = issueText;
+        }
+        
+        // Loading states are now handled by auto-refresh in the template
+        // Examples and rules are generated during the loading state in the view
+        console.log('Current step:', '{{ step }}');
+        
+        // Store audit results for JavaScript access
+        const auditResults = {};
+        {% for rule in suggested_rules %}
+            {% if rule.audit_result_json %}
+            auditResults['{{ rule.id }}'] = {{ rule.audit_result_json|safe }};
+            {% endif %}
+        {% endfor %}
+
+        function showRuleDetails(ruleId) {
+            const modal = document.getElementById('ruleModal');
+            const modalBody = document.getElementById('ruleModalBody');
+            const audit = auditResults[ruleId];
+            
+            if (!audit) {
+                alert('Audit data not available.');
+                return;
+            }
+
+            let html = `<h2 style="margin-bottom: 20px;">Rule Details</h2>`;
+            html += `<div class="executive-summary-full">`;
+            html += `<h3>Executive Summary</h3>`;
+            
+            if (audit.executive_summary.overall_status === "APPROVED") {
+                html += `<span class="badge badge-approved">✅ APPROVED</span>`;
+            } else if (audit.executive_summary.overall_status === "APPROVED_WITH_WARNINGS") {
+                html += `<span class="badge badge-warning">⚠️ APPROVED WITH WARNINGS</span>`;
+            } else {
+                html += `<span class="badge badge-rejected">🛑 REJECTED</span>`;
+            }
+            
+            html += `<p><strong>Recommendation:</strong> ${audit.executive_summary.recommendation}</p>`;
+            if (audit.executive_summary.cumulative_score) {
+                html += `<p><strong>Overall Score:</strong> ${audit.executive_summary.cumulative_score}/100</p>`;
+            }
+            html += `<p><strong>Critical Issues:</strong> ${audit.executive_summary.critical_issues_count}</p>`;
+            html += `<p><strong>Warnings:</strong> ${audit.executive_summary.warnings_count}</p>`;
+            html += `</div>`;
+            
+            html += `<div class="tool-reports-full"><h3>Tool Reports</h3>`;
+            audit.reports.forEach(report => {
+                const statusClass = report.status.toLowerCase();
+                html += `
+                    <div class="tool-report-card-full tool-report-${statusClass}">
+                        <h4>${report.tool_name}</h4>
+                        <p>${report.message}</p>
+                        ${report.score ? `<div>Score: ${report.score}/100</div>` : ''}
+                    </div>
+                `;
+            });
+            html += `</div>`;
+            
+            modalBody.innerHTML = html;
+            modal.style.display = 'block';
+        }
+
+        function closeRuleModal() {
+            document.getElementById('ruleModal').style.display = 'none';
+        }
+
+        function handleDeploy(event, ruleId) {
+            event.preventDefault();
+            
+            // Show loading overlay
+            const overlay = document.getElementById('deployLoadingOverlay');
+            if (overlay) {
+                overlay.classList.add('active');
+            }
+            
+            // Disable the button
+            const btn = event.target;
+            btn.disabled = true;
+            
+            // Wait exactly 5 seconds, then submit the form
+            setTimeout(() => {
+                const form = event.target.closest('form');
+                if (form) {
+                    // Remove overlay class before submitting (in case of any delay)
+                    if (overlay) {
+                        overlay.classList.remove('active');
+                    }
+                    form.submit();
+                } else {
+                    // Fallback: if form not found, hide overlay and reload
+                    if (overlay) {
+                        overlay.classList.remove('active');
+                    }
+                    window.location.reload();
+                }
+            }, 5000);
+        }
+        
+        function handleReject(event, ruleId) {
+            event.preventDefault();
+            
+            // Hide the rule card immediately
+            const ruleCard = document.querySelector(`[data-rule-id="${ruleId}"]`);
+            if (ruleCard) {
+                ruleCard.style.display = 'none';
+            }
+            
+            // Submit the form
+            const form = event.target.closest('form');
+            form.submit();
+        }
+    </script>
+</body>
+</html>
