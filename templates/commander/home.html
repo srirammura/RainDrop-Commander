@@ -367,14 +367,15 @@
                         <!-- Left: Rules List (showing only current rule) -->
                         <div class="rules-list">
                             {% for rule in suggested_rules %}
-                            {% if rule.id and rule.description %}
-                            <div class="rule-card" data-rule-id="{{ rule.id }}" {% if rule.deployed %}data-deployed="true" style="opacity: 0.6;"{% endif %}>
-                                <div class="rule-header">
-                                    <h3>Rule {{ forloop.counter }}: {{ rule.description }}</h3>
-                                    <div class="rule-example">
-                                        <strong>Example:</strong> "{{ rule.example|default:'' }}"
+                            {% if rule.id %}
+                                {% if rule.description %}
+                                <div class="rule-card" data-rule-id="{{ rule.id }}" {% if rule.deployed %}data-deployed="true" style="opacity: 0.6;"{% endif %}>
+                                    <div class="rule-header">
+                                        <h3>Rule {{ forloop.counter }}: {{ rule.description }}</h3>
+                                        <div class="rule-example">
+                                            <strong>Example:</strong> "{{ rule.example|default:'' }}"
+                                        </div>
                                     </div>
-                                </div>
                                 
                                 {% if rule.audit_result %}
                                 <!-- All Three Commander Scores - displayed below rule and example -->
@@ -474,6 +475,7 @@
                                     {% endif %}
                                 </div>
                             </div>
+                                {% endif %}
                             {% endif %}
                             {% endfor %}
                         </div>
@@ -548,7 +550,8 @@
                                             <div>Warnings: {{ rule.audit_result.executive_summary.warnings_count }}</div>
                                         </div>
                                     </div>
-                                </div>
+                                    </div>
+                                    {% endif %}
                                 {% endif %}
                             {% endfor %}
                         </div>
