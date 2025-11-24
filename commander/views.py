@@ -436,25 +436,42 @@ def home(request):
         
         # Prevent infinite redirect loops
         error_count = request.session.get("error_count", 0)
+        sys.stderr.write(f"DEBUG: Error count: {error_count}\n")
+        sys.stderr.flush()
+        
         if error_count > 2:
             # Too many errors, return a simple error response instead of redirecting
             from django.http import HttpResponse
+            sys.stderr.write("DEBUG: Returning error response (too many errors)\n")
+            sys.stderr.flush()
             return HttpResponse(
-                f"<html><body><h1>Error</h1><p>An error occurred. Please refresh the page.</p><p>Error: {str(e)}</p></body></html>",
+                f"<html><body><h1>Error</h1><p>An error occurred. Please refresh the page.</p><p>Error: {str(e)}</p><pre>{error_traceback}</pre></body></html>",
                 status=500
             )
         
         # Reset session to safe state
-        request.session["error_message"] = f"An error occurred: {str(e)}"
-        request.session["error_count"] = error_count + 1
-        request.session["user_issue"] = None
-        request.session["current_example_index"] = -2
-        request.session["generated_examples"] = None
-        request.session["generated_rules"] = None
-        request.session["example_labels"] = {}
-        request.session["searching"] = False
-        request.session["generating_rules"] = False
-        request.session.modified = True
+        try:
+            request.session["error_message"] = f"An error occurred: {str(e)}"
+            request.session["error_count"] = error_count + 1
+            request.session["user_issue"] = None
+            request.session["current_example_index"] = -2
+            request.session["generated_examples"] = None
+            request.session["generated_rules"] = None
+            request.session["example_labels"] = {}
+            request.session["searching"] = False
+            request.session["generating_rules"] = False
+            request.session.modified = True
+            sys.stderr.write("DEBUG: Session reset, redirecting\n")
+            sys.stderr.flush()
+        except Exception as session_error:
+            sys.stderr.write(f"ERROR updating session: {session_error}\n")
+            sys.stderr.flush()
+            # If session update fails, just return error response
+            from django.http import HttpResponse
+            return HttpResponse(
+                f"<html><body><h1>Error</h1><p>An error occurred.</p><p>Error: {str(e)}</p><p>Session Error: {str(session_error)}</p><pre>{error_traceback}</pre></body></html>",
+                status=500
+            )
         
         # Only redirect if we haven't hit the error limit
         return redirect("home")
