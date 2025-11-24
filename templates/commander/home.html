@@ -603,8 +603,10 @@
         const auditResults = {};
         {% if suggested_rules %}
             {% for rule in suggested_rules %}
-                {% if rule.id and rule.audit_result_json %}
-                auditResults['{{ rule.id }}'] = {{ rule.audit_result_json|safe }};
+                {% if rule.id %}
+                    {% if rule.audit_result_json %}
+                    auditResults['{{ rule.id }}'] = {{ rule.audit_result_json|safe }};
+                    {% endif %}
                 {% endif %}
             {% endfor %}
         {% endif %}
