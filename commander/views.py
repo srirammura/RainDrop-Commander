@@ -381,6 +381,8 @@ def home(request):
                 "total_rules": total_rules,
             }
             
+            sys.stderr.write("DEBUG: Context built successfully, attempting to render template\n")
+            sys.stderr.flush()
             print(f"DEBUG: Context built successfully, attempting to render template")
             
             # Reset error count on successful request
@@ -388,7 +390,18 @@ def home(request):
                 request.session["error_count"] = 0
                 request.session.modified = True
             
-            return render(request, "commander/home.html", context)
+            sys.stderr.write("DEBUG: About to call render()\n")
+            sys.stderr.flush()
+            try:
+                result = render(request, "commander/home.html", context)
+                sys.stderr.write("DEBUG: render() completed successfully\n")
+                sys.stderr.flush()
+                return result
+            except Exception as render_exc:
+                sys.stderr.write(f"ERROR: render() raised exception: {render_exc}\n")
+                sys.stderr.write(traceback.format_exc())
+                sys.stderr.flush()
+                raise
         except Exception as render_error:
             error_traceback = traceback.format_exc()
             sys.stderr.write(f"ERROR during template rendering: {render_error}\n")
