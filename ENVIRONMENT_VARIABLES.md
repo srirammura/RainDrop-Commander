@@ -13,13 +13,13 @@
 - **Example**: `django-insecure-abc123xyz789...` (50+ characters)
 - **Used in**: `raindrop_commander/settings.py`
 
-### 2. `OPENAI_API_KEY`
-- **Description**: OpenAI API key for generating examples and rules using GPT models
+### 2. `ANTHROPIC_API_KEY`
+- **Description**: Anthropic (Claude) API key for generating examples and rules using Claude models
 - **Required**: Yes
-- **Format**: Starts with `sk-proj-` or `sk-`
-- **Example**: `sk-proj-your-openai-api-key-here`
-- **Used in**: `commander/services/gemini_client.py` (OpenAI client)
-- **Get it from**: https://platform.openai.com/api-keys
+- **Format**: Starts with `sk-ant-api03-`
+- **Example**: `sk-ant-api03-your-anthropic-api-key-here`
+- **Used in**: `commander/services/gemini_client.py` (Anthropic client)
+- **Get it from**: https://console.anthropic.com/settings/keys
 
 ## Optional Environment Variables
 
@@ -45,7 +45,7 @@
 ### For Local Development (.env file):
 ```env
 DJANGO_SECRET_KEY=your-secret-key-here
-OPENAI_API_KEY=sk-proj-your-openai-api-key-here
+ANTHROPIC_API_KEY=sk-ant-api03-your-anthropic-api-key-here
 DEBUG=True
 ALLOWED_HOSTS=localhost,127.0.0.1
 ```
@@ -53,7 +53,7 @@ ALLOWED_HOSTS=localhost,127.0.0.1
 ### For Production (Render):
 ```env
 DJANGO_SECRET_KEY=your-generated-secret-key-50-chars-minimum
-OPENAI_API_KEY=sk-proj-your-openai-api-key-here
+ANTHROPIC_API_KEY=sk-ant-api03-your-anthropic-api-key-here
 DEBUG=False
 ALLOWED_HOSTS=raindrop-commander.onrender.com
 ```
@@ -66,7 +66,7 @@ Create a `.env` file in the project root:
 cd "/Users/srirammuralidharan/AI Projects/raindrop-Commander"
 cat > .env << EOF
 DJANGO_SECRET_KEY=$(python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())")
-OPENAI_API_KEY=your-openai-api-key-here
+ANTHROPIC_API_KEY=your-anthropic-api-key-here
 DEBUG=True
 ALLOWED_HOSTS=localhost,127.0.0.1
 EOF
@@ -85,7 +85,6 @@ EOF
 
 - **Never commit `.env` file** to git (already in `.gitignore`)
 - **DJANGO_SECRET_KEY** should be unique and secret for each environment
-- **OPENAI_API_KEY** is required for the app to function (LLM calls)
+- **ANTHROPIC_API_KEY** is required for the app to function (LLM calls)
 - **DEBUG=False** in production for security
 - **ALLOWED_HOSTS** should match your deployment URL in production
-

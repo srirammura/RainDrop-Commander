@@ -1,19 +1,19 @@
 import os
 import json
-from openai import OpenAI
+from anthropic import Anthropic
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
 
-API_KEY = os.getenv("OPENAI_API_KEY")
-MODEL_NAME = "gpt-4o-mini"  # Using GPT-4o-mini for cost efficiency
+API_KEY = os.getenv("ANTHROPIC_API_KEY")
+MODEL_NAME = "claude-3-5-sonnet-20241022"  # Using Claude 3.5 Sonnet for best performance
 
 if not API_KEY:
-    raise ValueError("OPENAI_API_KEY environment variable is not set")
+    raise ValueError("ANTHROPIC_API_KEY environment variable is not set")
 
 # Create client with timeout settings
-client = OpenAI(
+client = Anthropic(
     api_key=API_KEY,
     timeout=60.0,  # 60 second timeout for individual API calls
     max_retries=2  # Retry up to 2 times on failure
@@ -21,70 +21,67 @@ client = OpenAI(
 
 
 def generate_text(prompt: str, temperature: float = 0.7, max_tokens: int = 2048) -> str:
-    """Generate text using OpenAI API."""
+    """Generate text using Anthropic Claude API."""
     try:
-        response = client.chat.completions.create(
+        response = client.messages.create(
             model=MODEL_NAME,
+            max_tokens=max_tokens,
+            temperature=temperature,
             messages=[
                 {"role": "user", "content": prompt}
             ],
-            temperature=temperature,
-            max_tokens=max_tokens,
             timeout=60.0,  # 60 second timeout for this specific call
         )
         
-        if not response.choices or len(response.choices) == 0:
-            raise Exception("Response blocked: No choices returned.")
+        if not response.content or len(response.content) == 0:
+            raise Exception("Response blocked: No content returned.")
         
-        choice = response.choices[0]
-        
-        # Check if content was filtered
-        if choice.finish_reason == "content_filter":
-            raise Exception("Response blocked by content filter. The content may violate safety guidelines.")
-        
-        if not choice.message or not choice.message.content:
-            raise Exception(f"Response blocked: No content returned (finish_reason: {choice.finish_reason}).")
-        
-        return choice.message.content
+        # Claude returns content as a list of text blocks
+        text_content = response.content[0]
+        if hasattr(text_content, 'text'):
+            return text_content.text
+        elif isinstance(text_content, str):
+            return text_content
+        else:
+            raise Exception(f"Unexpected content type: {type(text_content)}")
+            
     except Exception as error:
         raise Exception(f"Failed to generate text: {str(error)}")
 
 
 def generate_json(prompt: str, temperature: float = 0.3) -> dict:
-    """Generate JSON response using OpenAI API."""
+    """Generate JSON response using Anthropic Claude API."""
     try:
         # Add instruction to return JSON
         json_prompt = prompt + "\n\nReturn only valid JSON, no other text."
         
-        response = client.chat.completions.create(
+        response = client.messages.create(
             model=MODEL_NAME,
+            max_tokens=4096,
+            temperature=temperature,
             messages=[
-                {"role": "system", "content": "You are a helpful assistant that returns only valid JSON."},
                 {"role": "user", "content": json_prompt}
             ],
-            temperature=temperature,
-            response_format={"type": "json_object"},  # Force JSON mode
+            timeout=60.0,  # 60 second timeout for this specific call
         )
         
-        if not response.choices or len(response.choices) == 0:
-            raise Exception("Response blocked: No choices returned.")
+        if not response.content or len(response.content) == 0:
+            raise Exception("Response blocked: No content returned.")
         
-        choice = response.choices[0]
-        
-        # Check if content was filtered
-        if choice.finish_reason == "content_filter":
-            raise ValueError("Response blocked by content filter. The content may violate safety guidelines.")
-        
-        if not choice.message or not choice.message.content:
-            raise ValueError(f"Response blocked: No content returned (finish_reason: {choice.finish_reason}).")
-        
-        text = choice.message.content
+        # Claude returns content as a list of text blocks
+        text_content = response.content[0]
+        if hasattr(text_content, 'text'):
+            text = text_content.text
+        elif isinstance(text_content, str):
+            text = text_content
+        else:
+            raise Exception(f"Unexpected content type: {type(text_content)}")
         
         # Try to parse JSON
         try:
             return json.loads(text)
         except json.JSONDecodeError:
-            # Sometimes OpenAI returns JSON wrapped in markdown code blocks
+            # Sometimes Claude returns JSON wrapped in markdown code blocks
             text = text.strip()
             if text.startswith("```json"):
                 text = text[7:]

@@ -54,7 +54,7 @@ The application is dockerized for consistent deployment across environments.
 
 3. Set environment variables in Render:
    - `DJANGO_SECRET_KEY`: Generate using `python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"`
-   - `OPENAI_API_KEY`: Your OpenAI API key
+   - `ANTHROPIC_API_KEY`: Your Anthropic (Claude) API key
    - `DEBUG`: Set to `False` for production
    - `ALLOWED_HOSTS`: Your Render service URL (e.g., `raindrop-commander.onrender.com`)
    - `PORT`: Set to `8000` (or let Render auto-assign)
@@ -70,7 +70,7 @@ docker build -t raindrop-commander .
 # Run the container
 docker run -p 8000:8000 \
   -e DJANGO_SECRET_KEY=your-secret-key \
-  -e OPENAI_API_KEY=your-api-key \
+  -e ANTHROPIC_API_KEY=your-api-key \
   -e DEBUG=False \
   -e ALLOWED_HOSTS=localhost \
   raindrop-commander
@@ -86,6 +86,6 @@ If you prefer the original Python deployment method, you can still use:
 ## Environment Variables
 
 - `DJANGO_SECRET_KEY`: Django secret key (required)
-- `OPENAI_API_KEY`: OpenAI API key (required)
+- `ANTHROPIC_API_KEY`: Anthropic (Claude) API key (required)
 - `DEBUG`: Set to `False` in production
 - `ALLOWED_HOSTS`: Comma-separated list of allowed hosts
