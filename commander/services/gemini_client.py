@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 API_KEY = os.getenv("ANTHROPIC_API_KEY")
-MODEL_NAME = "claude-opus-4-20250514"  # Using Claude Opus 4.5 for best performance
+MODEL_NAME = "claude-opus-4-5-20251101"  # Using Claude Opus 4.5 for best performance
 
 if not API_KEY:
     raise ValueError("ANTHROPIC_API_KEY environment variable is not set")
