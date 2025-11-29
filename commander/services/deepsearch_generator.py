@@ -177,7 +177,7 @@ def generate_examples_from_issue(issue_description: str) -> List[Dict[str, str]]
     print(f"DEBUG: Prompt includes issue description '{issue_description[:50]}...' {prompt.count(issue_description)} times")
 
     # Use lower temperature for more consistent, safer outputs
-    print(f"DEBUG: Calling OpenAI API with temperature=0.7 for diverse examples...")
+    print(f"DEBUG: Calling Anthropic Claude API with temperature=0.7 for diverse examples...")
     result = generate_json(prompt, temperature=0.7)  # Increased temperature for more diversity
     print(f"DEBUG: OpenAI API call completed")
     
@@ -511,7 +511,7 @@ def generate_suggested_rules_from_examples(issue_description: str, examples: Lis
     prompt = construct_rules_prompt(issue_description, labeled_examples)
     print(f"DEBUG: Rules prompt length: {len(prompt)} characters")
     print(f"DEBUG: Prompt includes issue description '{issue_description[:50]}...' {prompt.count(issue_description)} times")
-    print(f"DEBUG: Calling OpenAI API with temperature=0.5 for rule generation...")
+    print(f"DEBUG: Calling Anthropic Claude API with temperature=0.5 for rule generation...")
     
     result = generate_json(prompt, temperature=0.5)
     print(f"DEBUG: OpenAI API call completed")
