@@ -179,7 +179,7 @@ def generate_examples_from_issue(issue_description: str) -> List[Dict[str, str]]
     # Use lower temperature for more consistent, safer outputs
     print(f"DEBUG: Calling Anthropic Claude API with temperature=0.7 for diverse examples...")
     result = generate_json(prompt, temperature=0.7)  # Increased temperature for more diversity
-    print(f"DEBUG: OpenAI API call completed")
+    print(f"DEBUG: Anthropic Claude API call completed")
     
     # Convert the new format to our expected format
     examples = []
@@ -514,7 +514,7 @@ def generate_suggested_rules_from_examples(issue_description: str, examples: Lis
     print(f"DEBUG: Calling Anthropic Claude API with temperature=0.5 for rule generation...")
     
     result = generate_json(prompt, temperature=0.5)
-    print(f"DEBUG: OpenAI API call completed")
+    print(f"DEBUG: Anthropic Claude API call completed")
     
     # Format rules with IDs from the proposed_rules
     formatted_rules = []
