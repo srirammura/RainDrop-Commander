@@ -12,6 +12,7 @@ from .services.mock_data import (
     get_all_mock_rules,
     get_common_issues,
 )
+from .services.effort_config import get_effort_statistics
 import json
 from datetime import datetime
 
@@ -19,6 +20,12 @@ from datetime import datetime
 def health_check(request):
     """Simple health check endpoint for Render."""
     return HttpResponse("OK", status=200)
+
+
+def effort_stats(request):
+    """Return effort parameter usage statistics for cost tracking."""
+    stats = get_effort_statistics()
+    return JsonResponse(stats)
 
 
 def home(request):

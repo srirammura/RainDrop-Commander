@@ -177,8 +177,9 @@ def generate_examples_from_issue(issue_description: str) -> List[Dict[str, str]]
     print(f"DEBUG: Prompt includes issue description '{issue_description[:50]}...' {prompt.count(issue_description)} times")
 
     # Use lower temperature for more consistent, safer outputs
+    # Example generation is moderate complexity - use medium effort
     print(f"DEBUG: Calling Anthropic Claude API with temperature=0.7 for diverse examples...")
-    result = generate_json(prompt, temperature=0.7)  # Increased temperature for more diversity
+    result = generate_json(prompt, temperature=0.7, task_type="generation")  # Medium effort for example generation
     print(f"DEBUG: Anthropic Claude API call completed")
     
     # Convert the new format to our expected format
@@ -513,7 +514,8 @@ def generate_suggested_rules_from_examples(issue_description: str, examples: Lis
     print(f"DEBUG: Prompt includes issue description '{issue_description[:50]}...' {prompt.count(issue_description)} times")
     print(f"DEBUG: Calling Anthropic Claude API with temperature=0.5 for rule generation...")
     
-    result = generate_json(prompt, temperature=0.5)
+    # Rule generation is complex synthesis - use high effort
+    result = generate_json(prompt, temperature=0.5, task_type="rule_generation")  # High effort for rule synthesis
     print(f"DEBUG: Anthropic Claude API call completed")
     
     # Format rules with IDs from the proposed_rules

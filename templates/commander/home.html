@@ -388,15 +388,11 @@
                                                 <span class="info-icon" title="Measures example diversity and variance. Higher scores (closer to 100) indicate the rule generalizes well beyond the training examples.">ℹ️</span>
                                             </span>
                                             <span style="font-size: 1.2rem; font-weight: 700; color: #60a5fa;">
-                                                {% if rule.audit_result.reports %}
-                                                    {% for report in rule.audit_result.reports %}
-                                                        {% if report.tool_name == "Variance/Overfit Detector" %}
-                                                            {% if report.score %}{{ report.score }}/100{% elif report.variance_score %}{{ report.variance_score }}/100{% else %}N/A{% endif %}
-                                                        {% endif %}
-                                                    {% endfor %}
-                                                {% else %}
-                                                    N/A
-                                                {% endif %}
+                                                {% for report in rule.audit_result.reports %}
+                                                    {% if report.tool_name == "Variance/Overfit Detector" %}
+                                                        {% if report.score %}{{ report.score }}/100{% elif report.variance_score %}{{ report.variance_score }}/100{% else %}N/A{% endif %}
+                                                    {% endif %}
+                                                {% endfor %}
                                             </span>
                                         </div>
                                     </div>
@@ -409,25 +405,21 @@
                                                 <span class="info-icon" title="Tests rule robustness against edge cases and boundary conditions. Higher scores indicate the rule handles tricky inputs well.">ℹ️</span>
                                             </span>
                                             <span style="font-size: 1.1rem; font-weight: 700; color: #ef4444;">
-                                                {% if rule.audit_result.reports %}
-                                                    {% for report in rule.audit_result.reports %}
-                                                        {% if report.tool_name == "Synthetic Red Team" %}
-                                                            {% if report.score %}
-                                                                {% if report.score >= 80 %}
-                                                                    <span style="color: #60a5fa;">High ({{ report.score }}/100)</span>
-                                                                {% elif report.score >= 60 %}
-                                                                    <span style="color: #f59e0b;">Medium ({{ report.score }}/100)</span>
-                                                                {% else %}
-                                                                    <span style="color: #ef4444;">Low ({{ report.score }}/100)</span>
-                                                                {% endif %}
+                                                {% for report in rule.audit_result.reports %}
+                                                    {% if report.tool_name == "Synthetic Red Team" %}
+                                                        {% if report.score %}
+                                                            {% if report.score >= 80 %}
+                                                                <span style="color: #60a5fa;">High ({{ report.score }}/100)</span>
+                                                            {% elif report.score >= 60 %}
+                                                                <span style="color: #f59e0b;">Medium ({{ report.score }}/100)</span>
                                                             {% else %}
-                                                                <span style="color: #94a3b8;">N/A</span>
+                                                                <span style="color: #ef4444;">Low ({{ report.score }}/100)</span>
                                                             {% endif %}
+                                                        {% else %}
+                                                            <span style="color: #94a3b8;">N/A</span>
                                                         {% endif %}
-                                                    {% endfor %}
-                                                {% else %}
-                                                    <span style="color: #94a3b8;">N/A</span>
-                                                {% endif %}
+                                                    {% endif %}
+                                                {% endfor %}
                                             </span>
                                         </div>
                                     </div>
@@ -440,21 +432,17 @@
                                                 <span class="info-icon" title="Generates examples at the rule's boundaries to help clarify what should and shouldn't match. Shows edge cases for rule refinement.">ℹ️</span>
                                             </span>
                                             <span style="font-size: 1.1rem; font-weight: 700; color: #3b82f6;">
-                                                {% if rule.audit_result.reports %}
-                                                    {% for report in rule.audit_result.reports %}
-                                                        {% if report.tool_name == "Semantic Boundary Mapper" %}
-                                                            {% if report.status == "PASS" %}
-                                                                <span style="color: #60a5fa;">{{ report.status }}</span>
-                                                            {% elif report.status == "WARN" %}
-                                                                <span style="color: #f59e0b;">{{ report.status }}</span>
-                                                            {% else %}
-                                                                <span style="color: #ef4444;">{{ report.status }}</span>
-                                                            {% endif %}
+                                                {% for report in rule.audit_result.reports %}
+                                                    {% if report.tool_name == "Semantic Boundary Mapper" %}
+                                                        {% if report.status == "PASS" %}
+                                                            <span style="color: #60a5fa;">{{ report.status }}</span>
+                                                        {% elif report.status == "WARN" %}
+                                                            <span style="color: #f59e0b;">{{ report.status }}</span>
+                                                        {% else %}
+                                                            <span style="color: #ef4444;">{{ report.status }}</span>
                                                         {% endif %}
-                                                    {% endfor %}
-                                                {% else %}
-                                                    <span style="color: #94a3b8;">N/A</span>
-                                                {% endif %}
+                                                    {% endif %}
+                                                {% endfor %}
                                             </span>
                                         </div>
                                     </div>
@@ -502,11 +490,10 @@
                                     <h4>Rule {{ forloop.counter }}</h4>
                                     
                                     <!-- Final Recommendation -->
-                                    {% if rule.audit_result.executive_summary %}
                                     <div class="final-recommendation" style="margin-bottom: 15px; padding: 12px; background: {% if rule.audit_result.executive_summary.overall_status == 'APPROVED' %}rgba(96, 165, 250, 0.2){% elif rule.audit_result.executive_summary.overall_status == 'APPROVED_WITH_WARNINGS' %}rgba(245, 158, 11, 0.2){% else %}rgba(239, 68, 68, 0.2){% endif %}; border: 2px solid {% if rule.audit_result.executive_summary.overall_status == 'APPROVED' %}#60a5fa{% elif rule.audit_result.executive_summary.overall_status == 'APPROVED_WITH_WARNINGS' %}#f59e0b{% else %}#ef4444{% endif %}; border-radius: 0; box-shadow: inset 2px 2px 0px #0d0d0d;">
                                         <div style="font-weight: 600; margin-bottom: 5px; color: {% if rule.audit_result.executive_summary.overall_status == 'APPROVED' %}#60a5fa{% elif rule.audit_result.executive_summary.overall_status == 'APPROVED_WITH_WARNINGS' %}#f59e0b{% else %}#ef4444{% endif %};">Recommendation:</div>
                                         <div style="font-size: 0.95rem; color: #bfdbfe; line-height: 1.5;">
-                                            {{ rule.audit_result.executive_summary.recommendation|default:"No recommendation available" }}
+                                            {{ rule.audit_result.executive_summary.recommendation }}
                                         </div>
                                         {% if rule.audit_result.executive_summary.cumulative_score %}
                                         <div style="margin-top: 8px; font-size: 0.85rem; color: #94a3b8;">
@@ -514,7 +501,6 @@
                                         </div>
                                         {% endif %}
                                     </div>
-                                    {% endif %}
                                     
                                     <div class="score-summary">
                                         {% if rule.audit_result.executive_summary.overall_status == "APPROVED" %}
@@ -527,7 +513,6 @@
                                         
                                         <!-- Three Tool Scores -->
                                         <div class="three-scores">
-                                            {% if rule.audit_result.reports %}
                                             {% for report in rule.audit_result.reports %}
                                                 {% if report.tool_name == "Synthetic Red Team" %}
                                                     <div class="tool-score">
@@ -561,14 +546,11 @@
                                             {% endfor %}
                                         </div>
                                         
-                                        {% if rule.audit_result.executive_summary %}
                                         <div class="score-breakdown">
-                                            <div>Errors: {{ rule.audit_result.executive_summary.critical_issues_count|default:0 }}</div>
-                                            <div>Warnings: {{ rule.audit_result.executive_summary.warnings_count|default:0 }}</div>
+                                            <div>Errors: {{ rule.audit_result.executive_summary.critical_issues_count }}</div>
+                                            <div>Warnings: {{ rule.audit_result.executive_summary.warnings_count }}</div>
                                         </div>
-                                        {% endif %}
                                     </div>
-                                            {% endif %}
                                     </div>
                                     {% endif %}
                                 {% endif %}

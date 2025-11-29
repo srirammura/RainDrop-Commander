@@ -37,7 +37,8 @@ Return a JSON object:
   "recommendation": "specific recommendation"
 }}"""
 
-            analysis = generate_json(prompt)
+            # Overfit detection is moderate analysis - use medium effort
+            analysis = generate_json(prompt, task_type="overfit_detection")
 
             variance_score = analysis.get("variance_score", 0)
             if analysis.get("is_overfit") or variance_score < 40:

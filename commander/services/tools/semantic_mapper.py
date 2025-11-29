@@ -86,7 +86,8 @@ Return a JSON object:
   ]
 }}"""
 
-            boundary_result = generate_json(prompt, temperature=0.5)
+            # Boundary mapping with quality analysis is complex - use high effort
+            boundary_result = generate_json(prompt, temperature=0.5, task_type="boundary_mapping")
             
             # Extract quality analysis
             quality = boundary_result.get("quality_analysis", {})

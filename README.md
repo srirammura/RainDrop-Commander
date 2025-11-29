@@ -55,6 +55,8 @@ The application is dockerized for consistent deployment across environments.
 3. Set environment variables in Render:
    - `DJANGO_SECRET_KEY`: Generate using `python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"`
    - `ANTHROPIC_API_KEY`: Your Anthropic (Claude) API key
+   - `CLAUDE_EFFORT_ENABLED`: Enable effort parameter for cost optimization (default: `true`)
+   - `CLAUDE_EFFORT_DEFAULT`: Default effort level for unknown tasks (default: `medium`)
    - `DEBUG`: Set to `False` for production
    - `ALLOWED_HOSTS`: Your Render service URL (e.g., `raindrop-commander.onrender.com`)
    - `PORT`: Set to `8000` (or let Render auto-assign)
@@ -87,5 +89,7 @@ If you prefer the original Python deployment method, you can still use:
 
 - `DJANGO_SECRET_KEY`: Django secret key (required)
 - `ANTHROPIC_API_KEY`: Anthropic (Claude) API key (required)
+- `CLAUDE_EFFORT_ENABLED`: Enable effort parameter for cost optimization (optional, default: `true`)
+- `CLAUDE_EFFORT_DEFAULT`: Default effort level for unknown tasks (optional, default: `medium`)
 - `DEBUG`: Set to `False` in production
 - `ALLOWED_HOSTS`: Comma-separated list of allowed hosts

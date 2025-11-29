@@ -34,7 +34,8 @@ Return a JSON object with this structure:
   ]
 }}"""
 
-            adversarial_cases = generate_json(prompt)
+            # Test case generation is moderate analysis - use medium effort
+            adversarial_cases = generate_json(prompt, task_type="test_generation")
 
             # Analyze which test cases would actually trigger the rule
             analysis_prompt = f"""Evaluate if these test cases would match the rule: "{rule}"
@@ -57,7 +58,8 @@ Return a JSON object:
   "robustness_score": number between 0-100 (100 = all test cases behave correctly)
 }}"""
 
-            analysis = generate_json(analysis_prompt)
+            # Test case analysis is moderate - use medium effort
+            analysis = generate_json(analysis_prompt, task_type="analysis")
 
             problematic_cases = [r for r in analysis.get("results", []) if r.get("is_problematic", False)]
             score = analysis.get("robustness_score", 0)

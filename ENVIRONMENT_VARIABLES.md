@@ -40,6 +40,22 @@
 - **Development**: Can be `*` or `localhost,127.0.0.1`
 - **Used in**: `raindrop_commander/settings.py`
 
+### 5. `CLAUDE_EFFORT_ENABLED`
+- **Description**: Enable/disable Claude Opus 4.5 effort parameter feature for cost optimization
+- **Required**: No
+- **Default**: `true`
+- **Values**: `true` or `false` (as string)
+- **Purpose**: When enabled, uses effort parameter to reduce token usage by 50-80% on simple tasks
+- **Used in**: `commander/services/effort_config.py`
+
+### 6. `CLAUDE_EFFORT_DEFAULT`
+- **Description**: Default effort level when task type is unknown
+- **Required**: No
+- **Default**: `medium`
+- **Values**: `low`, `medium`, or `high`
+- **Purpose**: Fallback effort level for unclassified tasks
+- **Used in**: `commander/services/effort_config.py`
+
 ## Complete Environment Variables List
 
 ### For Local Development (.env file):
@@ -56,6 +72,8 @@ DJANGO_SECRET_KEY=your-generated-secret-key-50-chars-minimum
 ANTHROPIC_API_KEY=sk-ant-api03-your-anthropic-api-key-here
 DEBUG=False
 ALLOWED_HOSTS=raindrop-commander.onrender.com
+CLAUDE_EFFORT_ENABLED=true
+CLAUDE_EFFORT_DEFAULT=medium
 ```
 
 ## Setting Environment Variables
