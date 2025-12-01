@@ -523,17 +523,29 @@ def generate_suggested_rules_from_examples(issue_description: str, examples: Lis
     print(f"DEBUG: Prompt includes issue description '{issue_description[:50]}...' {prompt.count(issue_description)} times")
     
     # Use routing supervisor to determine optimal effort level
-    print(f"DEBUG: Routing supervisor analyzing prompt for optimal effort level...")
-    recommended_effort, routing_info = route_effort_level(prompt, task_type="rule_generation")
-    print(f"DEBUG: Routing supervisor recommended: {recommended_effort} effort (confidence: {routing_info.get('confidence', 0)}, method: {routing_info.get('method', 'unknown')})")
+    recommended_effort = "high"  # Default for rule generation
+    routing_info = {"method": "fallback", "reasoning": "Using default high effort for rule generation", "confidence": 0.5}
+    try:
+        print(f"DEBUG: Routing supervisor analyzing prompt for optimal effort level...")
+        recommended_effort, routing_info = route_effort_level(prompt, task_type="rule_generation")
+        print(f"DEBUG: Routing supervisor recommended: {recommended_effort} effort (confidence: {routing_info.get('confidence', 0)}, method: {routing_info.get('method', 'unknown')})")
+    except Exception as routing_error:
+        print(f"WARNING: Routing supervisor failed, using default high effort: {routing_error}")
+        # Continue with default high effort
     
     print(f"DEBUG: Calling Anthropic Claude API with temperature=0.5 for rule generation...")
-    result, cost_metrics = generate_json(prompt, temperature=0.5, task_type="rule_generation", effort=recommended_effort)
-    print(f"DEBUG: Anthropic Claude API call completed")
-    print(f"DEBUG: Cost metrics - Tokens used: {cost_metrics['actual_total_tokens']}, Saved: {cost_metrics['tokens_saved']} ({cost_metrics['savings_percentage']}%)")
-    
-    # Add routing info to cost metrics
-    cost_metrics["routing_info"] = routing_info
+    try:
+        result, cost_metrics = generate_json(prompt, temperature=0.5, task_type="rule_generation", effort=recommended_effort)
+        print(f"DEBUG: Anthropic Claude API call completed")
+        print(f"DEBUG: Cost metrics - Tokens used: {cost_metrics.get('actual_total_tokens', 0)}, Saved: {cost_metrics.get('tokens_saved', 0)} ({cost_metrics.get('savings_percentage', 0)}%)")
+        
+        # Add routing info to cost metrics
+        cost_metrics["routing_info"] = routing_info
+    except Exception as api_error:
+        print(f"ERROR: API call failed: {api_error}")
+        import traceback
+        traceback.print_exc()
+        raise
     
     # Format rules with IDs from the proposed_rules
     formatted_rules = []
