@@ -2,7 +2,7 @@ import os
 import json
 from anthropic import Anthropic
 from dotenv import load_dotenv
-from typing import Optional, Literal
+from typing import Optional, Literal, Tuple
 from commander.services.effort_config import (
     get_effort_level,
     get_effort_headers,
@@ -34,7 +34,7 @@ def generate_text(
     max_tokens: int = 2048,
     task_type: str = "reasoning",
     effort: Optional[EffortLevel] = None
-) -> str:
+) -> Tuple[str, Dict[str, any]]:
     """
     Generate text using Anthropic Claude API with effort parameter support.
     
@@ -87,12 +87,43 @@ def generate_text(
         if not response.content or len(response.content) == 0:
             raise Exception("Response blocked: No content returned.")
         
+        # Extract token usage
+        input_tokens = getattr(response, 'usage', {}).input_tokens if hasattr(response, 'usage') else 0
+        output_tokens = getattr(response, 'usage', {}).output_tokens if hasattr(response, 'usage') else 0
+        actual_total_tokens = input_tokens + output_tokens
+        
+        # Calculate estimated tokens if high effort was used (baseline)
+        # Effort multipliers: low ~3x, medium ~4.2x, high 1x
+        effort_multipliers = {
+            "low": 3.0,
+            "medium": 4.2,
+            "high": 1.0,
+            "fallback": 1.0
+        }
+        multiplier = effort_multipliers.get(effort_level, 1.0)
+        estimated_high_effort_tokens = int(actual_total_tokens * multiplier)
+        
+        # Calculate savings
+        tokens_saved = max(0, estimated_high_effort_tokens - actual_total_tokens)
+        savings_percentage = (tokens_saved / estimated_high_effort_tokens * 100) if estimated_high_effort_tokens > 0 else 0
+        
+        # Build cost metrics
+        cost_metrics = {
+            "actual_input_tokens": input_tokens,
+            "actual_output_tokens": output_tokens,
+            "actual_total_tokens": actual_total_tokens,
+            "estimated_high_effort_tokens": estimated_high_effort_tokens,
+            "tokens_saved": tokens_saved,
+            "savings_percentage": round(savings_percentage, 1),
+            "effort_level_used": effort_level
+        }
+        
         # Claude returns content as a list of text blocks
         text_content = response.content[0]
         if hasattr(text_content, 'text'):
-            return text_content.text
+            return text_content.text, cost_metrics
         elif isinstance(text_content, str):
-            return text_content
+            return text_content, cost_metrics
         else:
             raise Exception(f"Unexpected content type: {type(text_content)}")
             
@@ -105,7 +136,7 @@ def generate_json(
     temperature: float = 0.3,
     task_type: str = "analysis",
     effort: Optional[EffortLevel] = None
-) -> dict:
+) -> Tuple[dict, Dict[str, any]]:
     """
     Generate JSON response using Anthropic Claude API with effort parameter support.
     
@@ -160,6 +191,37 @@ def generate_json(
         if not response.content or len(response.content) == 0:
             raise Exception("Response blocked: No content returned.")
         
+        # Extract token usage
+        input_tokens = getattr(response, 'usage', {}).input_tokens if hasattr(response, 'usage') else 0
+        output_tokens = getattr(response, 'usage', {}).output_tokens if hasattr(response, 'usage') else 0
+        actual_total_tokens = input_tokens + output_tokens
+        
+        # Calculate estimated tokens if high effort was used (baseline)
+        # Effort multipliers: low ~3x, medium ~4.2x, high 1x
+        effort_multipliers = {
+            "low": 3.0,
+            "medium": 4.2,
+            "high": 1.0,
+            "fallback": 1.0
+        }
+        multiplier = effort_multipliers.get(effort_level, 1.0)
+        estimated_high_effort_tokens = int(actual_total_tokens * multiplier)
+        
+        # Calculate savings
+        tokens_saved = max(0, estimated_high_effort_tokens - actual_total_tokens)
+        savings_percentage = (tokens_saved / estimated_high_effort_tokens * 100) if estimated_high_effort_tokens > 0 else 0
+        
+        # Build cost metrics
+        cost_metrics = {
+            "actual_input_tokens": input_tokens,
+            "actual_output_tokens": output_tokens,
+            "actual_total_tokens": actual_total_tokens,
+            "estimated_high_effort_tokens": estimated_high_effort_tokens,
+            "tokens_saved": tokens_saved,
+            "savings_percentage": round(savings_percentage, 1),
+            "effort_level_used": effort_level
+        }
+        
         # Claude returns content as a list of text blocks
         text_content = response.content[0]
         if hasattr(text_content, 'text'):
@@ -171,7 +233,8 @@ def generate_json(
         
         # Try to parse JSON
         try:
-            return json.loads(text)
+            parsed_json = json.loads(text)
+            return parsed_json, cost_metrics
         except json.JSONDecodeError:
             # Sometimes Claude returns JSON wrapped in markdown code blocks
             text = text.strip()
@@ -182,7 +245,8 @@ def generate_json(
             if text.endswith("```"):
                 text = text[:-3]
             text = text.strip()
-            return json.loads(text)
+            parsed_json = json.loads(text)
+            return parsed_json, cost_metrics
             
     except ValueError as ve:
         # Re-raise ValueError (content filter blocks) as-is so caller can handle

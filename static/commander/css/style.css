@@ -1009,3 +1009,182 @@ body {
         width: 100%;
     }
 }
+
+/* Cost Optimization Panel */
+.cost-optimization-panel {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    font-family: 'Inter', sans-serif;
+}
+
+.cost-panel-toggle {
+    width: 60px;
+    height: 60px;
+    border-radius: 0;
+    background: rgba(96, 165, 250, 0.2);
+    border: 3px solid #60a5fa;
+    color: #60a5fa;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 4px 4px 0px #0d0d0d;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cost-panel-toggle:hover {
+    background: rgba(96, 165, 250, 0.3);
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0px #0d0d0d;
+}
+
+.cost-panel-content {
+    position: absolute;
+    bottom: 80px;
+    right: 0;
+    width: 320px;
+    background: #1a1a1a;
+    border: 3px solid #60a5fa;
+    border-radius: 0;
+    box-shadow: 6px 6px 0px #0d0d0d;
+    display: none;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.3s ease;
+}
+
+.cost-optimization-panel.active .cost-panel-content {
+    display: block;
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.cost-panel-header {
+    background: rgba(96, 165, 250, 0.1);
+    padding: 16px;
+    border-bottom: 2px solid #60a5fa;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.cost-panel-header h3 {
+    margin: 0;
+    color: #60a5fa;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.cost-panel-close {
+    background: transparent;
+    border: none;
+    color: #60a5fa;
+    font-size: 24px;
+    cursor: pointer;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.cost-panel-close:hover {
+    background: rgba(96, 165, 250, 0.2);
+    transform: scale(1.1);
+}
+
+.cost-panel-body {
+    padding: 20px;
+}
+
+.cost-metric {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(96, 165, 250, 0.2);
+}
+
+.cost-metric:last-child {
+    border-bottom: none;
+}
+
+.cost-metric.highlight {
+    background: rgba(96, 165, 250, 0.05);
+    padding: 12px;
+    margin: 8px -12px;
+    border-left: 3px solid #60a5fa;
+}
+
+.cost-metric-label {
+    color: #bfdbfe;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.cost-metric-value {
+    color: #60a5fa;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.cost-metric-value.savings {
+    color: #4ade80;
+}
+
+.cost-metric-value.savings-percent {
+    color: #4ade80;
+    font-size: 1.3rem;
+}
+
+.cost-metric-value.effort-low {
+    color: #4ade80;
+}
+
+.cost-metric-value.effort-medium {
+    color: #fbbf24;
+}
+
+.cost-metric-value.effort-high {
+    color: #f87171;
+}
+
+.routing-info {
+    margin-top: 16px;
+    padding: 12px;
+    background: rgba(96, 165, 250, 0.05);
+    border: 1px solid rgba(96, 165, 250, 0.3);
+    border-radius: 0;
+}
+
+.routing-method {
+    color: #60a5fa;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.routing-reasoning {
+    color: #bfdbfe;
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+
+.cost-panel-placeholder {
+    text-align: center;
+    padding: 40px 20px;
+    color: #bfdbfe;
+    font-size: 0.9rem;
+}
+
+/* Show panel automatically on loading screens */
+body:has(.searching-stage) .cost-optimization-panel.active .cost-panel-content,
+body:has(.generating_rules) .cost-optimization-panel.active .cost-panel-content {
+    display: block;
+}

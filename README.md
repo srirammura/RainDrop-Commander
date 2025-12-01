@@ -57,6 +57,8 @@ The application is dockerized for consistent deployment across environments.
    - `ANTHROPIC_API_KEY`: Your Anthropic (Claude) API key
    - `CLAUDE_EFFORT_ENABLED`: Enable effort parameter for cost optimization (default: `true`)
    - `CLAUDE_EFFORT_DEFAULT`: Default effort level for unknown tasks (default: `medium`)
+   - `ROUTING_SUPERVISOR_ENABLED`: Enable adaptive routing supervisor (default: `true`)
+   - `ROUTING_LLM_THRESHOLD`: Confidence threshold for LLM routing (default: `0.7`)
    - `DEBUG`: Set to `False` for production
    - `ALLOWED_HOSTS`: Your Render service URL (e.g., `raindrop-commander.onrender.com`)
    - `PORT`: Set to `8000` (or let Render auto-assign)

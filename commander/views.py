@@ -235,8 +235,9 @@ def home(request):
                 elif generated_examples is None and user_issue:
                     # Generate examples
                     try:
-                        examples = generate_examples_from_issue(user_issue)
+                        examples, cost_metrics = generate_examples_from_issue(user_issue)
                         request.session["generated_examples"] = examples
+                        request.session["examples_cost_metrics"] = cost_metrics
                         request.session["searching"] = False
                         request.session["current_example_index"] = 0
                         request.session["loading_screen_shown"] = False
@@ -269,9 +270,10 @@ def home(request):
                     if pending_labeled_examples:
                         try:
                             print(f"DEBUG: ===== CALLING LLM TO GENERATE RULES =====")
-                            rules = generate_suggested_rules_from_examples(user_issue, pending_labeled_examples)
+                            rules, cost_metrics = generate_suggested_rules_from_examples(user_issue, pending_labeled_examples)
                             print(f"DEBUG: ===== LLM GENERATED {len(rules)} RULES =====")
                             request.session["generated_rules"] = rules
+                            request.session["rules_cost_metrics"] = cost_metrics
                             request.session["generating_rules"] = False
                             request.session["current_example_index"] = -1
                             request.session["pending_labeled_examples"] = None
@@ -430,6 +432,10 @@ def home(request):
         try:
             sys.stderr.write("DEBUG: Creating context dictionary\n")
             sys.stderr.flush()
+            # Get cost metrics from session for loading screens
+            examples_cost_metrics = request.session.get("examples_cost_metrics")
+            rules_cost_metrics = request.session.get("rules_cost_metrics")
+            
             context = {
                 "common_issues": common_issues,
                 "user_issue": display_user_issue,
@@ -445,6 +451,8 @@ def home(request):
                 "is_searching": is_searching,
                 "is_generating_rules": is_generating_rules,
                 "total_rules": total_rules,
+                "examples_cost_metrics": examples_cost_metrics,
+                "rules_cost_metrics": rules_cost_metrics,
             }
             sys.stderr.write("DEBUG: Context dictionary created\n")
             sys.stderr.flush()

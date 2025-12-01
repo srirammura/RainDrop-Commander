@@ -562,6 +562,84 @@
         </div>
     </div>
 
+    <!-- Cost Optimization Panel -->
+    <div id="costOptimizationPanel" class="cost-optimization-panel">
+        <button id="costPanelToggle" class="cost-panel-toggle" onclick="toggleCostPanel()">
+            💰
+        </button>
+        <div id="costPanelContent" class="cost-panel-content">
+            <div class="cost-panel-header">
+                <h3>Cost Optimization</h3>
+                <button class="cost-panel-close" onclick="toggleCostPanel()">×</button>
+            </div>
+            <div class="cost-panel-body">
+                {% if step == "searching" and examples_cost_metrics %}
+                    <div class="cost-metric">
+                        <div class="cost-metric-label">Effort Level</div>
+                        <div class="cost-metric-value effort-{{ examples_cost_metrics.effort_level_used }}">
+                            {{ examples_cost_metrics.effort_level_used|upper }}
+                        </div>
+                    </div>
+                    <div class="cost-metric">
+                        <div class="cost-metric-label">Tokens Used</div>
+                        <div class="cost-metric-value">{{ examples_cost_metrics.actual_total_tokens|floatformat:0 }}</div>
+                    </div>
+                    <div class="cost-metric">
+                        <div class="cost-metric-label">Est. High Effort</div>
+                        <div class="cost-metric-value">{{ examples_cost_metrics.estimated_high_effort_tokens|floatformat:0 }}</div>
+                    </div>
+                    <div class="cost-metric highlight">
+                        <div class="cost-metric-label">Tokens Saved</div>
+                        <div class="cost-metric-value savings">{{ examples_cost_metrics.tokens_saved|floatformat:0 }}</div>
+                    </div>
+                    <div class="cost-metric highlight">
+                        <div class="cost-metric-label">Savings</div>
+                        <div class="cost-metric-value savings-percent">{{ examples_cost_metrics.savings_percentage }}%</div>
+                    </div>
+                    {% if examples_cost_metrics.routing_info %}
+                    <div class="routing-info">
+                        <div class="routing-method">{{ examples_cost_metrics.routing_info.method|title }} Routing</div>
+                        <div class="routing-reasoning">{{ examples_cost_metrics.routing_info.reasoning }}</div>
+                    </div>
+                    {% endif %}
+                {% elif step == "generating_rules" and rules_cost_metrics %}
+                    <div class="cost-metric">
+                        <div class="cost-metric-label">Effort Level</div>
+                        <div class="cost-metric-value effort-{{ rules_cost_metrics.effort_level_used }}">
+                            {{ rules_cost_metrics.effort_level_used|upper }}
+                        </div>
+                    </div>
+                    <div class="cost-metric">
+                        <div class="cost-metric-label">Tokens Used</div>
+                        <div class="cost-metric-value">{{ rules_cost_metrics.actual_total_tokens|floatformat:0 }}</div>
+                    </div>
+                    <div class="cost-metric">
+                        <div class="cost-metric-label">Est. High Effort</div>
+                        <div class="cost-metric-value">{{ rules_cost_metrics.estimated_high_effort_tokens|floatformat:0 }}</div>
+                    </div>
+                    <div class="cost-metric highlight">
+                        <div class="cost-metric-label">Tokens Saved</div>
+                        <div class="cost-metric-value savings">{{ rules_cost_metrics.tokens_saved|floatformat:0 }}</div>
+                    </div>
+                    <div class="cost-metric highlight">
+                        <div class="cost-metric-label">Savings</div>
+                        <div class="cost-metric-value savings-percent">{{ rules_cost_metrics.savings_percentage }}%</div>
+                    </div>
+                    {% if rules_cost_metrics.routing_info %}
+                    <div class="routing-info">
+                        <div class="routing-method">{{ rules_cost_metrics.routing_info.method|title }} Routing</div>
+                        <div class="routing-reasoning">{{ rules_cost_metrics.routing_info.reasoning }}</div>
+                    </div>
+                    {% endif %}
+                {% else %}
+                    <div class="cost-panel-placeholder">
+                        <p>Cost metrics will appear here during generation</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
     <!-- Deploy Loading Overlay -->
     <div id="deployLoadingOverlay" class="deploy-loading-overlay">
         <div class="deploy-loading-content">
@@ -578,7 +656,28 @@
             if (overlay) {
                 overlay.classList.remove('active');
             }
+            
+            // Auto-show cost panel on loading screens
+            const costPanel = document.getElementById('costOptimizationPanel');
+            const step = '{{ step }}';
+            if (costPanel && (step === 'searching' || step === 'generating_rules')) {
+                // Check if we have cost metrics
+                const hasExamplesMetrics = {% if examples_cost_metrics %}true{% else %}false{% endif %};
+                const hasRulesMetrics = {% if rules_cost_metrics %}true{% else %}false{% endif %};
+                
+                if (hasExamplesMetrics || hasRulesMetrics) {
+                    costPanel.classList.add('active');
+                }
+            }
         });
+        
+        // Toggle cost panel
+        function toggleCostPanel() {
+            const panel = document.getElementById('costOptimizationPanel');
+            if (panel) {
+                panel.classList.toggle('active');
+            }
+        }
     </script>
 
     <!-- Rule Details Modal -->
