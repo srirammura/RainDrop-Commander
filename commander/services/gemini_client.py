@@ -87,9 +87,18 @@ def generate_text(
         if not response.content or len(response.content) == 0:
             raise Exception("Response blocked: No content returned.")
         
-        # Extract token usage
-        input_tokens = getattr(response, 'usage', {}).input_tokens if hasattr(response, 'usage') else 0
-        output_tokens = getattr(response, 'usage', {}).output_tokens if hasattr(response, 'usage') else 0
+        # Extract token usage from Anthropic response
+        try:
+            if hasattr(response, 'usage') and response.usage:
+                input_tokens = getattr(response.usage, 'input_tokens', 0) or 0
+                output_tokens = getattr(response.usage, 'output_tokens', 0) or 0
+            else:
+                input_tokens = 0
+                output_tokens = 0
+        except Exception as e:
+            print(f"WARNING: Failed to extract token usage: {e}")
+            input_tokens = 0
+            output_tokens = 0
         actual_total_tokens = input_tokens + output_tokens
         
         # Calculate estimated tokens if high effort was used (baseline)
@@ -191,9 +200,18 @@ def generate_json(
         if not response.content or len(response.content) == 0:
             raise Exception("Response blocked: No content returned.")
         
-        # Extract token usage
-        input_tokens = getattr(response, 'usage', {}).input_tokens if hasattr(response, 'usage') else 0
-        output_tokens = getattr(response, 'usage', {}).output_tokens if hasattr(response, 'usage') else 0
+        # Extract token usage from Anthropic response
+        try:
+            if hasattr(response, 'usage') and response.usage:
+                input_tokens = getattr(response.usage, 'input_tokens', 0) or 0
+                output_tokens = getattr(response.usage, 'output_tokens', 0) or 0
+            else:
+                input_tokens = 0
+                output_tokens = 0
+        except Exception as e:
+            print(f"WARNING: Failed to extract token usage: {e}")
+            input_tokens = 0
+            output_tokens = 0
         actual_total_tokens = input_tokens + output_tokens
         
         # Calculate estimated tokens if high effort was used (baseline)
