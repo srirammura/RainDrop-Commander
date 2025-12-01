@@ -518,9 +518,6 @@ def generate_suggested_rules_from_examples(issue_description: str, examples: Lis
     # Rule generation is complex synthesis - use high effort
     result = generate_json(prompt, temperature=0.5, task_type="rule_generation")  # High effort for rule synthesis
     print(f"DEBUG: Anthropic Claude API call completed")
-        import traceback
-        traceback.print_exc()
-        raise
     
     # Format rules with IDs from the proposed_rules
     formatted_rules = []
