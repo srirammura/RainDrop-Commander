@@ -527,10 +527,21 @@ def generate_suggested_rules_from_examples(issue_description: str, examples: Lis
     routing_info = {"method": "fallback", "reasoning": "Using default high effort for rule generation", "confidence": 0.5}
     try:
         print(f"DEBUG: Routing supervisor analyzing prompt for optimal effort level...")
+        import sys
+        sys.stderr.write(f"DEBUG: Routing supervisor analyzing prompt for optimal effort level...\n")
+        sys.stderr.flush()
         recommended_effort, routing_info = route_effort_level(prompt, task_type="rule_generation")
         print(f"DEBUG: Routing supervisor recommended: {recommended_effort} effort (confidence: {routing_info.get('confidence', 0)}, method: {routing_info.get('method', 'unknown')})")
+        sys.stderr.write(f"DEBUG: Routing supervisor recommended: {recommended_effort} effort (confidence: {routing_info.get('confidence', 0)}, method: {routing_info.get('method', 'unknown')})\n")
+        sys.stderr.flush()
     except Exception as routing_error:
-        print(f"WARNING: Routing supervisor failed, using default high effort: {routing_error}")
+        error_msg = str(routing_error)
+        print(f"WARNING: Routing supervisor failed, using default high effort: {error_msg}")
+        import sys
+        import traceback
+        sys.stderr.write(f"WARNING: Routing supervisor failed: {error_msg}\n")
+        sys.stderr.write(traceback.format_exc())
+        sys.stderr.flush()
         # Continue with default high effort
     
     print(f"DEBUG: Calling Anthropic Claude API with temperature=0.5 for rule generation...")

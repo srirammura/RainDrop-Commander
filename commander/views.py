@@ -344,10 +344,16 @@ def home(request):
                         "label": label,
                     })
             
-            # Audit rules
+            # Audit rules - but only if not already audited and limit to prevent timeout
             # Ensure suggested_rules is a list
             if not isinstance(suggested_rules, list):
                 suggested_rules = []
+            
+            # Only audit first rule on initial load to prevent timeout
+            # Remaining audits will happen on subsequent page loads
+            rules_audited_this_request = 0
+            max_audits_per_request = 1  # Limit to 1 audit per request to prevent timeout
+            
             for rule in suggested_rules:
                 # Ensure rule is a dict
                 if not isinstance(rule, dict):
@@ -358,13 +364,16 @@ def home(request):
                 if "status" not in rule:
                     rule["status"] = "pending"
                     
-                if rule.get("status") != "audited":
+                # Only audit rules that haven't been audited yet
+                if rule.get("status") != "audited" and rules_audited_this_request < max_audits_per_request:
                     examples_for_audit = labeled_examples.copy()
                     examples_for_audit.append({
                         "text": rule.get("example", ""),
                         "label": "MATCH",
                     })
                     try:
+                        sys.stderr.write(f"DEBUG: Auditing rule {rule.get('id')}...\n")
+                        sys.stderr.flush()
                         commander = CommanderAgent(rule.get("description", ""), examples_for_audit)
                         audit_result = commander.audit_rule()
                         rule["audit_result"] = audit_result
@@ -375,11 +384,22 @@ def home(request):
                             sys.stderr.flush()
                             rule["audit_result_json"] = "{}"
                         rule["status"] = "audited"
+                        rules_audited_this_request += 1
+                        sys.stderr.write(f"DEBUG: Completed audit for rule {rule.get('id')}\n")
+                        sys.stderr.flush()
                     except Exception as e:
+                        sys.stderr.write(f"ERROR: Audit failed for rule {rule.get('id')}: {e}\n")
+                        sys.stderr.flush()
                         rule["audit_error"] = str(e)
                         rule["status"] = "error"
                         rule["audit_result"] = None
                         rule["audit_result_json"] = "{}"
+                        rules_audited_this_request += 1
+                elif rule.get("status") != "audited":
+                    # Mark as pending audit for next request
+                    rule["status"] = "pending_audit"
+                    rule["audit_result"] = None
+                    rule["audit_result_json"] = "{}"
         
         # Mark deployed and rejected rules
         deployed_rules = request.session.get("deployed_rules", [])
