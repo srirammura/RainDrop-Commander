@@ -56,22 +56,6 @@
 - **Purpose**: Fallback effort level for unclassified tasks
 - **Used in**: `commander/services/effort_config.py`
 
-### 7. `ROUTING_SUPERVISOR_ENABLED`
-- **Description**: Enable/disable adaptive routing supervisor for intelligent effort level determination
-- **Required**: No
-- **Default**: `true`
-- **Values**: `true` or `false` (as string)
-- **Purpose**: When enabled, uses hybrid routing (rule-based + LLM) to determine optimal effort levels
-- **Used in**: `commander/services/routing_supervisor.py`
-
-### 8. `ROUTING_LLM_THRESHOLD`
-- **Description**: Confidence threshold for using LLM routing (0.0-1.0)
-- **Required**: No
-- **Default**: `0.7`
-- **Values**: Float between 0.0 and 1.0
-- **Purpose**: If rule-based routing confidence is below this threshold, use LLM routing
-- **Used in**: `commander/services/routing_supervisor.py`
-
 ## Complete Environment Variables List
 
 ### For Local Development (.env file):
@@ -90,8 +74,6 @@ DEBUG=False
 ALLOWED_HOSTS=raindrop-commander.onrender.com
 CLAUDE_EFFORT_ENABLED=true
 CLAUDE_EFFORT_DEFAULT=medium
-ROUTING_SUPERVISOR_ENABLED=true
-ROUTING_LLM_THRESHOLD=0.7
 ```
 
 ## Setting Environment Variables

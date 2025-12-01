@@ -1,7 +1,6 @@
 """Service to generate DeepSearch examples and rules from issue descriptions using LLM."""
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any
 from commander.services.gemini_client import generate_json
-from commander.services.routing_supervisor import route_effort_level
 import json
 import re
 
@@ -160,7 +159,7 @@ def sanitize_issue_description(description: str) -> str:
     return sanitized
 
 
-def generate_examples_from_issue(issue_description: str) -> Tuple[List[Dict[str, str]], Dict[str, any]]:
+def generate_examples_from_issue(issue_description: str) -> List[Dict[str, str]]:
     """
     Generate interaction examples from an issue description using LLM.
     Returns a list of examples with user and assistant messages.
@@ -177,16 +176,11 @@ def generate_examples_from_issue(issue_description: str) -> Tuple[List[Dict[str,
     print(f"DEBUG: Prompt length: {len(prompt)} characters")
     print(f"DEBUG: Prompt includes issue description '{issue_description[:50]}...' {prompt.count(issue_description)} times")
 
-    # Use routing supervisor to determine optimal effort level
-    print(f"DEBUG: Routing supervisor analyzing prompt for optimal effort level...")
-    recommended_effort, routing_info = route_effort_level(prompt, task_type="generation")
-    print(f"DEBUG: Routing supervisor recommended: {recommended_effort} effort (confidence: {routing_info.get('confidence', 0)}, method: {routing_info.get('method', 'unknown')})")
-
     # Use lower temperature for more consistent, safer outputs
+    # Example generation is moderate complexity - use medium effort
     print(f"DEBUG: Calling Anthropic Claude API with temperature=0.7 for diverse examples...")
-    result, cost_metrics = generate_json(prompt, temperature=0.7, task_type="generation", effort=recommended_effort)
+    result = generate_json(prompt, temperature=0.7, task_type="generation")  # Medium effort for example generation
     print(f"DEBUG: Anthropic Claude API call completed")
-    print(f"DEBUG: Cost metrics - Tokens used: {cost_metrics['actual_total_tokens']}, Saved: {cost_metrics['tokens_saved']} ({cost_metrics['savings_percentage']}%)")
     
     # Convert the new format to our expected format
     examples = []
@@ -207,9 +201,6 @@ def generate_examples_from_issue(issue_description: str) -> Tuple[List[Dict[str,
         conversations = []
     
     print(f"DEBUG: Parsed {len(conversations)} conversations from LLM response")
-    
-    # Add routing info to cost metrics
-    cost_metrics["routing_info"] = routing_info
     
     for conv in conversations:
         # Extract user and assistant messages from new format
@@ -247,7 +238,7 @@ def generate_examples_from_issue(issue_description: str) -> Tuple[List[Dict[str,
             print(f"DEBUG: First example - Assistant: '{first_example.get('assistant', '')[:100]}...'")
             print(f"DEBUG: First example - Label: {first_example.get('user_label', 'N/A')}")
             print(f"DEBUG: Verifying examples are relevant to issue: '{issue_description[:50]}...'")
-        return examples, cost_metrics
+        return examples
     else:
         # No fallback - raise error to force retry or show error to user
         print(f"ERROR: No examples generated from LLM for issue: '{issue_description}'")
@@ -522,38 +513,11 @@ def generate_suggested_rules_from_examples(issue_description: str, examples: Lis
     print(f"DEBUG: Rules prompt length: {len(prompt)} characters")
     print(f"DEBUG: Prompt includes issue description '{issue_description[:50]}...' {prompt.count(issue_description)} times")
     
-    # Use routing supervisor to determine optimal effort level
-    recommended_effort = "high"  # Default for rule generation
-    routing_info = {"method": "fallback", "reasoning": "Using default high effort for rule generation", "confidence": 0.5}
-    try:
-        print(f"DEBUG: Routing supervisor analyzing prompt for optimal effort level...")
-        import sys
-        sys.stderr.write(f"DEBUG: Routing supervisor analyzing prompt for optimal effort level...\n")
-        sys.stderr.flush()
-        recommended_effort, routing_info = route_effort_level(prompt, task_type="rule_generation")
-        print(f"DEBUG: Routing supervisor recommended: {recommended_effort} effort (confidence: {routing_info.get('confidence', 0)}, method: {routing_info.get('method', 'unknown')})")
-        sys.stderr.write(f"DEBUG: Routing supervisor recommended: {recommended_effort} effort (confidence: {routing_info.get('confidence', 0)}, method: {routing_info.get('method', 'unknown')})\n")
-        sys.stderr.flush()
-    except Exception as routing_error:
-        error_msg = str(routing_error)
-        print(f"WARNING: Routing supervisor failed, using default high effort: {error_msg}")
-        import sys
-        import traceback
-        sys.stderr.write(f"WARNING: Routing supervisor failed: {error_msg}\n")
-        sys.stderr.write(traceback.format_exc())
-        sys.stderr.flush()
-        # Continue with default high effort
-    
     print(f"DEBUG: Calling Anthropic Claude API with temperature=0.5 for rule generation...")
-    try:
-        result, cost_metrics = generate_json(prompt, temperature=0.5, task_type="rule_generation", effort=recommended_effort)
-        print(f"DEBUG: Anthropic Claude API call completed")
-        print(f"DEBUG: Cost metrics - Tokens used: {cost_metrics.get('actual_total_tokens', 0)}, Saved: {cost_metrics.get('tokens_saved', 0)} ({cost_metrics.get('savings_percentage', 0)}%)")
-        
-        # Add routing info to cost metrics
-        cost_metrics["routing_info"] = routing_info
-    except Exception as api_error:
-        print(f"ERROR: API call failed: {api_error}")
+    
+    # Rule generation is complex synthesis - use high effort
+    result = generate_json(prompt, temperature=0.5, task_type="rule_generation")  # High effort for rule synthesis
+    print(f"DEBUG: Anthropic Claude API call completed")
         import traceback
         traceback.print_exc()
         raise
@@ -668,7 +632,7 @@ def generate_suggested_rules_from_examples(issue_description: str, examples: Lis
         # Raise exception instead of using fallback
         raise Exception(f"Failed to generate rules from LLM. Result type: {type(result)}")
     
-    return formatted_rules, cost_metrics
+    return formatted_rules
 
 
 def get_fallback_examples(issue_description: str) -> List[Dict[str, str]]:
