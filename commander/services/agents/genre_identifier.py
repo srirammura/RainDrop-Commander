@@ -35,7 +35,7 @@ OUTPUT FORMAT (JSON):
         {{
             "name": "Genre name (e.g., 'API Documentation Access Failure')",
             "description": "Brief description of this genre",
-            "prompt": "Focused prompt to generate 1-2 examples for this genre. The prompt should be self-contained and include the issue description."
+            "prompt": "Focused prompt to generate 1-2 examples for this genre. The prompt should be self-contained, include the issue description, and MUST end with instructions to return JSON in this format: {{'examples': [{{'user_message': '...', 'assistant_response': '...', 'has_issue': true/false, 'category': 'SIMPLE_POSITIVE' or 'SIMPLE_NEGATIVE' or 'BOUNDARY_POSITIVE' or 'BOUNDARY_NEGATIVE', 'topic': '...'}}]}}. Return only valid JSON, no other text."
         }},
         ...
     ]
@@ -82,15 +82,32 @@ Return only valid JSON, no other text."""
 
 def _create_fallback_genres(issue_description: str) -> List[Dict[str, str]]:
     """Create fallback genres if LLM call fails."""
+    base_prompt_template = """Generate 2-3 realistic production examples of the following issue:
+
+ISSUE: "{issue_description}"
+
+Create user-assistant interactions that clearly demonstrate this issue. Examples should be specific, use real technology names, and show realistic production scenarios.
+
+Return your response as valid JSON in this format:
+{{
+    "examples": [
+        {{
+            "user_message": "The user's message",
+            "assistant_response": "The assistant's response",
+            "has_issue": true or false,
+            "category": "SIMPLE_POSITIVE" or "SIMPLE_NEGATIVE" or "BOUNDARY_POSITIVE" or "BOUNDARY_NEGATIVE",
+            "topic": "Brief topic description"
+        }}
+    ]
+}}
+
+Return only valid JSON, no other text."""
+    
     return [
         {
             "name": "Primary Manifestation",
             "description": "Main way the issue occurs",
-            "prompt": f"""Generate 2-3 realistic production examples of the following issue:
-
-ISSUE: "{issue_description}"
-
-Create user-assistant interactions that clearly demonstrate this issue. Examples should be specific, use real technology names, and show realistic production scenarios."""
+            "prompt": base_prompt_template.format(issue_description=issue_description)
         },
         {
             "name": "Edge Case Manifestation",
@@ -99,7 +116,22 @@ Create user-assistant interactions that clearly demonstrate this issue. Examples
 
 ISSUE: "{issue_description}"
 
-Create user-assistant interactions that show subtle or edge-case manifestations of this issue."""
+Create user-assistant interactions that show subtle or edge-case manifestations of this issue.
+
+Return your response as valid JSON in this format:
+{{
+    "examples": [
+        {{
+            "user_message": "The user's message",
+            "assistant_response": "The assistant's response",
+            "has_issue": true or false,
+            "category": "SIMPLE_POSITIVE" or "SIMPLE_NEGATIVE" or "BOUNDARY_POSITIVE" or "BOUNDARY_NEGATIVE",
+            "topic": "Brief topic description"
+        }}
+    ]
+}}
+
+Return only valid JSON, no other text."""
         },
         {
             "name": "Different Context Manifestation",
@@ -108,7 +140,22 @@ Create user-assistant interactions that show subtle or edge-case manifestations 
 
 ISSUE: "{issue_description}"
 
-Create diverse examples showing the issue in various contexts."""
+Create diverse examples showing the issue in various contexts.
+
+Return your response as valid JSON in this format:
+{{
+    "examples": [
+        {{
+            "user_message": "The user's message",
+            "assistant_response": "The assistant's response",
+            "has_issue": true or false,
+            "category": "SIMPLE_POSITIVE" or "SIMPLE_NEGATIVE" or "BOUNDARY_POSITIVE" or "BOUNDARY_NEGATIVE",
+            "topic": "Brief topic description"
+        }}
+    ]
+}}
+
+Return only valid JSON, no other text."""
         }
     ]
 

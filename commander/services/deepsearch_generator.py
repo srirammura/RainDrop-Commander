@@ -167,7 +167,37 @@ def _generate_examples_for_genre(genre_prompt: str, genre_name: str) -> List[Dic
     """Generate examples for a single genre using a focused prompt."""
     try:
         print(f"DEBUG: Generating examples for genre: {genre_name}")
-        result = generate_json(genre_prompt, temperature=0.7, task_type="generation")
+        
+        # Enhance the genre prompt to ensure proper JSON format
+        enhanced_prompt = f"""{genre_prompt}
+
+CRITICAL: You must return your response as valid JSON in the following format:
+
+{{
+    "examples": [
+        {{
+            "user_message": "The user's message",
+            "assistant_response": "The assistant's response",
+            "has_issue": true or false,
+            "category": "SIMPLE_POSITIVE" or "SIMPLE_NEGATIVE" or "BOUNDARY_POSITIVE" or "BOUNDARY_NEGATIVE",
+            "topic": "Brief topic description"
+        }},
+        ...
+    ]
+}}
+
+Return only valid JSON, no other text."""
+        
+        result = generate_json(enhanced_prompt, temperature=0.7, task_type="generation")
+        
+        # Debug: Log the actual result structure
+        print(f"DEBUG: Genre '{genre_name}' result type: {type(result)}")
+        if isinstance(result, dict):
+            print(f"DEBUG: Genre '{genre_name}' result keys: {list(result.keys())}")
+        elif isinstance(result, list):
+            print(f"DEBUG: Genre '{genre_name}' result is list with {len(result)} items")
+        else:
+            print(f"DEBUG: Genre '{genre_name}' result value (first 200 chars): {str(result)[:200]}")
         
         examples = []
         # Handle JSON response - expect list of examples or dict with "examples" key
@@ -176,23 +206,34 @@ def _generate_examples_for_genre(genre_prompt: str, genre_name: str) -> List[Dic
                 conversations = result["examples"]
             elif "conversations" in result:
                 conversations = result["conversations"]
+            elif "interactions" in result:
+                conversations = result["interactions"]
             else:
+                print(f"WARNING: Genre '{genre_name}' result dict has no 'examples', 'conversations', or 'interactions' key")
+                print(f"DEBUG: Available keys: {list(result.keys())}")
                 conversations = []
         elif isinstance(result, list):
             conversations = result
         else:
+            print(f"ERROR: Genre '{genre_name}' result is not dict or list, it's {type(result)}")
             conversations = []
         
-        for conv in conversations:
-            user_message = conv.get("user_message", "") or conv.get("user", "")
-            assistant_message = conv.get("assistant_response", "") or conv.get("assistant", "")
+        print(f"DEBUG: Genre '{genre_name}' found {len(conversations)} conversations to process")
+        
+        for i, conv in enumerate(conversations):
+            if not isinstance(conv, dict):
+                print(f"WARNING: Genre '{genre_name}' conversation {i} is not a dict, it's {type(conv)}")
+                continue
+                
+            user_message = conv.get("user_message", "") or conv.get("user", "") or conv.get("user_input", "")
+            assistant_message = conv.get("assistant_response", "") or conv.get("assistant", "") or conv.get("assistant_output", "")
             has_issue = conv.get("has_issue", False)
             category = conv.get("category", "")
             
             # Determine label
-            if has_issue or category in ["SIMPLE_POSITIVE", "BOUNDARY_POSITIVE"]:
+            if has_issue or category in ["SIMPLE_POSITIVE", "BOUNDARY_POSITIVE", "TRUE_POSITIVE"]:
                 label = "MATCH"
-            elif category in ["SIMPLE_NEGATIVE", "BOUNDARY_NEGATIVE"]:
+            elif category in ["SIMPLE_NEGATIVE", "BOUNDARY_NEGATIVE", "TRUE_NEGATIVE"]:
                 label = "NO_MATCH"
             else:
                 label = "MATCH" if has_issue else "NO_MATCH"
@@ -205,12 +246,18 @@ def _generate_examples_for_genre(genre_prompt: str, genre_name: str) -> List[Dic
                     "topic": conv.get("topic", ""),
                     "genre": genre_name
                 })
+            else:
+                print(f"WARNING: Genre '{genre_name}' conversation {i} missing user_message or assistant_message")
+                print(f"DEBUG: user_message: '{user_message[:50] if user_message else 'None'}...'")
+                print(f"DEBUG: assistant_message: '{assistant_message[:50] if assistant_message else 'None'}...'")
         
         print(f"DEBUG: Generated {len(examples)} examples for genre '{genre_name}'")
         return examples
         
     except Exception as e:
         print(f"ERROR: Failed to generate examples for genre '{genre_name}': {e}")
+        import traceback
+        traceback.print_exc()
         return []  # Return empty list on error, continue with other genres
 
 
