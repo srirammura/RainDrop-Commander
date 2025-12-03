@@ -35,12 +35,25 @@ CACHE_TTL_DEFAULT = int(os.getenv("CACHE_TTL_DEFAULT", "86400"))  # 24 hours
 redis_client = None
 if REDIS_AVAILABLE and CACHE_ENABLED:
     try:
-        redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+        # Handle TLS connections (rediss://) for Upstash and other providers
+        if REDIS_URL.startswith("rediss://"):
+            # For TLS connections, use ssl_cert_reqs=None to allow self-signed certs
+            redis_client = redis.from_url(
+                REDIS_URL,
+                decode_responses=True,
+                ssl_cert_reqs=None,
+                ssl=True
+            )
+        else:
+            redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+        
         # Test connection
         redis_client.ping()
         print("DEBUG: Redis connection established for caching")
     except Exception as e:
         print(f"WARNING: Redis not available, using in-memory cache: {e}")
+        import traceback
+        traceback.print_exc()
         redis_client = None
 
 # In-memory fallback cache

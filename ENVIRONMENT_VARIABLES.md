@@ -70,6 +70,8 @@
 - **Default**: `redis://localhost:6379/0`
 - **Values**: Valid Redis URL (e.g., `redis://localhost:6379/0`, `rediss://user:pass@host:6380/0`)
 - **Purpose**: Enables distributed caching across multiple instances
+- **TLS Support**: Use `rediss://` (with double 's') for TLS connections (e.g., Upstash)
+- **Example (Upstash)**: `rediss://default:password@host.upstash.io:6379`
 - **Used in**: `commander/services/cache_service.py`
 
 ### 9. `OPENAI_API_KEY`
@@ -139,8 +141,8 @@ ALLOWED_HOSTS=raindrop-commander.onrender.com
 CLAUDE_EFFORT_ENABLED=true
 CLAUDE_EFFORT_DEFAULT=medium
 CACHE_ENABLED=true
-REDIS_URL=redis://your-redis-host:6379/0
-OPENAI_API_KEY=sk-your-openai-api-key-here
+REDIS_URL=rediss://default:password@host.upstash.io:6379
+OPENAI_API_KEY=sk-proj-your-openai-api-key-here
 SEMANTIC_CACHE_THRESHOLD=0.85
 CACHE_TTL_EXAMPLES=604800
 CACHE_TTL_EVALUATION=86400
