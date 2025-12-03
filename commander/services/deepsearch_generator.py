@@ -1,6 +1,10 @@
 """Service to generate DeepSearch examples and rules from issue descriptions using LLM."""
 from typing import List, Dict, Any
 from commander.services.gemini_client import generate_json
+from commander.services.agents.genre_identifier import identify_genres
+from commander.services.agents.rule_potential_evaluator import evaluate_rule_potential
+from commander.services.agents.example_selector import select_top_examples
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import re
 
@@ -159,93 +163,138 @@ def sanitize_issue_description(description: str) -> str:
     return sanitized
 
 
-def generate_examples_from_issue(issue_description: str) -> List[Dict[str, str]]:
-    """
-    Generate interaction examples from an issue description using LLM.
-    Returns a list of examples with user and assistant messages.
-    Uses production interaction generation with diverse categories.
-    
-    IMPORTANT: This function ALWAYS calls the LLM API - no caching or pooling.
-    Examples are generated fresh for each issue description.
-    """
-    print(f"DEBUG: ===== generate_examples_from_issue() CALLED =====")
-    print(f"DEBUG: Issue description: '{issue_description}'")
-    print(f"DEBUG: This is a fresh LLM API call - generating examples dynamically")
-    
-    prompt = generate_minimal_safe_prompt(issue_description, num=12)
-    print(f"DEBUG: Prompt length: {len(prompt)} characters")
-    print(f"DEBUG: Prompt includes issue description '{issue_description[:50]}...' {prompt.count(issue_description)} times")
-
-    # Use lower temperature for more consistent, safer outputs
-    # Example generation is moderate complexity - use medium effort
-    print(f"DEBUG: Calling Anthropic Claude API with temperature=0.7 for diverse examples...")
-    result = generate_json(prompt, temperature=0.7, task_type="generation")  # Medium effort for example generation
-    print(f"DEBUG: Anthropic Claude API call completed")
-    
-    # Convert the new format to our expected format
-    examples = []
-    
-    # Handle JSON object with "examples" key
-    if isinstance(result, dict):
-        if "examples" in result:
-            conversations = result["examples"]
+def _generate_examples_for_genre(genre_prompt: str, genre_name: str) -> List[Dict[str, str]]:
+    """Generate examples for a single genre using a focused prompt."""
+    try:
+        print(f"DEBUG: Generating examples for genre: {genre_name}")
+        result = generate_json(genre_prompt, temperature=0.7, task_type="generation")
+        
+        examples = []
+        # Handle JSON response - expect list of examples or dict with "examples" key
+        if isinstance(result, dict):
+            if "examples" in result:
+                conversations = result["examples"]
+            elif "conversations" in result:
+                conversations = result["conversations"]
+            else:
+                conversations = []
         elif isinstance(result, list):
-            # Fallback: if result is directly a list (shouldn't happen with json_object mode, but handle it)
             conversations = result
         else:
             conversations = []
-    elif isinstance(result, list):
-        # Handle case where LLM returns array directly (shouldn't happen with json_object mode)
-        conversations = result
-    else:
-        conversations = []
-    
-    print(f"DEBUG: Parsed {len(conversations)} conversations from LLM response")
-    
-    for conv in conversations:
-        # Extract user and assistant messages from new format
-        user_message = conv.get("user_message", "")
-        assistant_message = conv.get("assistant_response", "")
-        has_issue = conv.get("has_issue", False)
-        category = conv.get("category", "")
         
-        # Determine label based on has_issue and category
-        # SIMPLE_POSITIVE and BOUNDARY_POSITIVE should be MATCH
-        # SIMPLE_NEGATIVE and BOUNDARY_NEGATIVE should be NO_MATCH
-        if has_issue or category in ["SIMPLE_POSITIVE", "BOUNDARY_POSITIVE"]:
-            label = "MATCH"
-        elif category in ["SIMPLE_NEGATIVE", "BOUNDARY_NEGATIVE"]:
-            label = "NO_MATCH"
-        else:
-            # Fallback to has_issue
-            label = "MATCH" if has_issue else "NO_MATCH"
+        for conv in conversations:
+            user_message = conv.get("user_message", "") or conv.get("user", "")
+            assistant_message = conv.get("assistant_response", "") or conv.get("assistant", "")
+            has_issue = conv.get("has_issue", False)
+            category = conv.get("category", "")
+            
+            # Determine label
+            if has_issue or category in ["SIMPLE_POSITIVE", "BOUNDARY_POSITIVE"]:
+                label = "MATCH"
+            elif category in ["SIMPLE_NEGATIVE", "BOUNDARY_NEGATIVE"]:
+                label = "NO_MATCH"
+            else:
+                label = "MATCH" if has_issue else "NO_MATCH"
+            
+            if user_message and assistant_message:
+                examples.append({
+                    "user": user_message,
+                    "assistant": assistant_message,
+                    "user_label": label,
+                    "topic": conv.get("topic", ""),
+                    "genre": genre_name
+                })
         
-        if user_message and assistant_message:
-            examples.append({
-                "user": user_message,
-                "assistant": assistant_message,
-                "user_label": label,
-                "topic": conv.get("topic", ""),  # Store topic for reference
-            })
+        print(f"DEBUG: Generated {len(examples)} examples for genre '{genre_name}'")
+        return examples
+        
+    except Exception as e:
+        print(f"ERROR: Failed to generate examples for genre '{genre_name}': {e}")
+        return []  # Return empty list on error, continue with other genres
+
+
+def generate_examples_from_issue(issue_description: str) -> tuple:
+    """
+    Generate interaction examples from an issue description using parallel genre-based generation.
+    Returns examples and rule potential scores.
     
-    # Validate we have examples - ALWAYS use LLM, never fallback
-    if examples:
-        print(f"DEBUG: Generated {len(examples)} examples from LLM")
-        # Log first example to verify it's relevant to the issue
-        if examples:
-            first_example = examples[0]
+    IMPORTANT: This function ALWAYS calls the LLM API - no caching or pooling.
+    Examples are generated fresh for each issue description using parallel genre-based approach.
+    """
+    print(f"DEBUG: ===== generate_examples_from_issue() CALLED =====")
+    print(f"DEBUG: Issue description: '{issue_description}'")
+    print(f"DEBUG: Using parallel genre-based generation")
+    
+    # Step 1: Identify genres
+    print(f"DEBUG: Step 1: Identifying genres...")
+    genres = identify_genres(issue_description)
+    print(f"DEBUG: Identified {len(genres)} genres")
+    
+    # Step 2: Generate examples in parallel for each genre
+    print(f"DEBUG: Step 2: Generating examples in parallel for {len(genres)} genres...")
+    all_examples = []
+    rule_potential_scores = {}
+    
+    with ThreadPoolExecutor(max_workers=len(genres)) as executor:
+        # Submit all genre generation tasks
+        future_to_genre = {
+            executor.submit(_generate_examples_for_genre, genre["prompt"], genre["name"]): genre["name"]
+            for genre in genres
+        }
+        
+        # Process results as they complete
+        for future in as_completed(future_to_genre):
+            genre_name = future_to_genre[future]
+            try:
+                genre_examples = future.result()
+                start_idx = len(all_examples)
+                all_examples.extend(genre_examples)
+                
+                # Step 3: Evaluate rule potential in parallel as examples arrive
+                if genre_examples:
+                    print(f"DEBUG: Evaluating rule potential for {len(genre_examples)} examples from genre '{genre_name}'...")
+                    with ThreadPoolExecutor(max_workers=min(len(genre_examples), 4)) as eval_executor:
+                        eval_futures = {
+                            eval_executor.submit(evaluate_rule_potential, ex, issue_description): 
+                                (start_idx + i, ex)
+                            for i, ex in enumerate(genre_examples)
+                        }
+                        
+                        for eval_future in as_completed(eval_futures):
+                            ex_idx, ex = eval_futures[eval_future]
+                            try:
+                                score_data = eval_future.result()
+                                rule_potential_scores[ex_idx] = score_data
+                                print(f"DEBUG: Example {ex_idx} rule potential score: {score_data.get('score', 0)}")
+                            except Exception as e:
+                                print(f"WARNING: Rule potential evaluation failed for example {ex_idx}: {e}")
+                                rule_potential_scores[ex_idx] = {"score": 50, "reasoning": f"Evaluation error: {e}"}
+                                
+            except Exception as e:
+                print(f"ERROR: Genre '{genre_name}' generation failed: {e}")
+                # Continue with other genres
+    
+    # Validate we have examples
+    if all_examples:
+        print(f"DEBUG: Generated {len(all_examples)} total examples from {len(genres)} genres")
+        print(f"DEBUG: Evaluated rule potential for {len(rule_potential_scores)} examples")
+        
+        # Ensure we have at least 10 examples (target 12)
+        if len(all_examples) < 10:
+            print(f"WARNING: Only {len(all_examples)} examples generated, expected 10-12")
+        
+        # Log first example
+        if all_examples:
+            first_example = all_examples[0]
             print(f"DEBUG: First example - User: '{first_example.get('user', '')[:100]}...'")
             print(f"DEBUG: First example - Assistant: '{first_example.get('assistant', '')[:100]}...'")
             print(f"DEBUG: First example - Label: {first_example.get('user_label', 'N/A')}")
-            print(f"DEBUG: Verifying examples are relevant to issue: '{issue_description[:50]}...'")
-        return examples
+        
+        return all_examples, rule_potential_scores
     else:
-        # No fallback - raise error to force retry or show error to user
         print(f"ERROR: No examples generated from LLM for issue: '{issue_description}'")
-        print(f"DEBUG: Result type: {type(result)}, Result keys: {result.keys() if isinstance(result, dict) else 'N/A'}")
-        print(f"DEBUG: Conversations parsed: {len(conversations)}")
-        # Raise exception instead of using fallback
-        raise Exception(f"Failed to generate examples from LLM. Result type: {type(result)}, Conversations: {len(conversations)}")
+        raise Exception(f"Failed to generate examples from LLM. Generated {len(all_examples)} examples from {len(genres)} genres.")
 
 
 def format_matches(matches: List[Dict[str, str]]) -> str:
@@ -485,18 +534,67 @@ Return only valid JSON.
     return prompt
 
 
-def generate_suggested_rules_from_examples(issue_description: str, examples: List[Dict[str, str]]) -> List[Dict[str, str]]:
+def _generate_rule_for_example(example: Dict[str, Any], issue_description: str, all_no_matches: List[Dict[str, str]]) -> Dict[str, Any]:
+    """Generate a single rule based on one example."""
+    try:
+        user_msg = example.get("user", "")
+        assistant_msg = example.get("assistant", "")
+        
+        # Build focused prompt for this single example
+        prompt = f"""Generate ONE actionable classification rule based on this specific example.
+
+ISSUE DESCRIPTION: "{issue_description}"
+
+EXAMPLE TO BASE RULE ON:
+User: {user_msg}
+Assistant: {assistant_msg}
+
+CONTEXT (NO_MATCH examples to avoid false positives):
+{chr(10).join([f"User: {e.get('user', '')}\nAssistant: {e.get('assistant', '')}" for e in all_no_matches[:3]])}
+
+REQUIREMENTS:
+1. Create ONE actionable rule that would correctly classify this example as MATCH
+2. Rule must be in format: "The [output|input] must [condition]" or "The [output|input] must not [condition]"
+3. Rule should be specific enough to catch this example but general enough to apply to similar cases
+4. Rule should avoid false positives from the NO_MATCH examples provided
+
+OUTPUT FORMAT (JSON):
+{{
+    "rule": "The output must express the assistant failing to accessing documentation",
+    "description": "Clear description of what this rule detects",
+    "check_location": "output",
+    "condition_type": "must_express",
+    "condition": "assistant failing to accessing documentation",
+    "must_contain_keywords": ["can't", "cannot", "unable"],
+    "must_contain_phrases": ["can't reach", "cannot access"],
+    "example": "{assistant_msg[:100]}..."
+}}
+
+Return only valid JSON, no other text."""
+
+        result = generate_json(prompt, temperature=0.5, task_type="rule_generation")
+        return result
+        
+    except Exception as e:
+        print(f"ERROR: Failed to generate rule for example: {e}")
+        return None
+
+
+def generate_suggested_rules_from_examples(
+    issue_description: str, 
+    examples: List[Dict[str, str]],
+    rule_potential_scores: Dict[int, Dict[str, Any]] = None
+) -> List[Dict[str, str]]:
     """
-    Generate suggested rules from labeled examples using LLM.
+    Generate suggested rules from labeled examples using parallel rule generation.
     
     IMPORTANT: This function ALWAYS calls the LLM API - no caching or pooling.
-    Rules are generated fresh based on the labeled examples and issue description.
+    Rules are generated fresh based on selected examples using parallel calls.
     """
     print(f"DEBUG: ===== generate_suggested_rules_from_examples() CALLED =====")
     print(f"DEBUG: Issue description: '{issue_description}'")
     print(f"DEBUG: Number of labeled examples: {len(examples)}")
-    print(f"DEBUG: This is a fresh LLM API call - generating rules dynamically")
-    print(f"DEBUG: Total examples provided: {len(examples)}")
+    print(f"DEBUG: Using parallel rule generation")
     
     # Separate MATCH and NO_MATCH examples
     matches = [e for e in examples if e.get("user_label") == "MATCH"]
@@ -504,130 +602,112 @@ def generate_suggested_rules_from_examples(issue_description: str, examples: Lis
     
     print(f"DEBUG: MATCH examples: {len(matches)}, NO_MATCH examples: {len(no_matches)}")
     
-    labeled_examples = {
-        "matches": matches,
-        "no_matches": no_matches,
-    }
+    # Step 1: Select top 4 examples for rule generation
+    print(f"DEBUG: Step 1: Selecting top 4 examples for rule generation...")
+    selected_examples = select_top_examples(examples, issue_description, rule_potential_scores)
+    print(f"DEBUG: Selected {len(selected_examples)} examples for rule generation")
     
-    prompt = construct_rules_prompt(issue_description, labeled_examples)
-    print(f"DEBUG: Rules prompt length: {len(prompt)} characters")
-    print(f"DEBUG: Prompt includes issue description '{issue_description[:50]}...' {prompt.count(issue_description)} times")
+    if len(selected_examples) == 0:
+        print(f"ERROR: No examples selected for rule generation")
+        return []
     
-    print(f"DEBUG: Calling Anthropic Claude API with temperature=0.5 for rule generation...")
+    # Step 2: Generate rules in parallel for each selected example
+    print(f"DEBUG: Step 2: Generating rules in parallel for {len(selected_examples)} examples...")
+    rule_results = []
     
-    # Rule generation is complex synthesis - use high effort
-    result = generate_json(prompt, temperature=0.5, task_type="rule_generation")  # High effort for rule synthesis
-    print(f"DEBUG: Anthropic Claude API call completed")
-    
-    # Format rules with IDs from the proposed_rules
-    formatted_rules = []
-    if "proposed_rules" in result and isinstance(result["proposed_rules"], list):
-        for i, rule in enumerate(result["proposed_rules"][:4], 1):  # Limit to 4 rules
-            # Prefer "rule" field, then "description" field
-            rule_text = rule.get("rule", "")
-            rule_description = rule.get("description", "")
-            
-            # Use the rule field if available and valid
-            if rule_text and len(rule_text) > 10:
-                final_rule = rule_text
-            elif rule_description and len(rule_description) > 10:
-                # Check if description follows the correct format
-                # Should start with "The [output|input|assistant_message|user_message]"
-                if rule_description.startswith("The ") and ("must" in rule_description.lower() or "must not" in rule_description.lower()):
-                    final_rule = rule_description
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        future_to_example = {
+            executor.submit(_generate_rule_for_example, ex, issue_description, no_matches): i
+            for i, ex in enumerate(selected_examples)
+        }
+        
+        for future in as_completed(future_to_example):
+            ex_idx = future_to_example[future]
+            try:
+                rule_result = future.result()
+                if rule_result:
+                    rule_results.append((ex_idx, rule_result))
+                    print(f"DEBUG: Generated rule {len(rule_results)}/4")
                 else:
-                    # Try to build rule from structured fields
-                    check_location = rule.get("check_location", "output")
-                    condition_type = rule.get("condition_type", "must_express")
-                    condition = rule.get("condition", "")
-                    
-                    # Map check_location to readable format
-                    location_map = {
-                        "output": "output",
-                        "input": "input",
-                        "assistant_message": "output",
-                        "user_message": "input"
-                    }
-                    readable_location = location_map.get(check_location, check_location)
-                    
-                    # Build rule in the correct format
-                    if condition:
-                        if "must_not" in condition_type or "must not" in condition_type:
-                            final_rule = f"The {readable_location} must not {condition_type.replace('must_not_', '').replace('_', ' ')} {condition}"
-                        else:
-                            final_rule = f"The {readable_location} must {condition_type.replace('must_', '').replace('_', ' ')} {condition}"
-                    else:
-                        # Last resort: use description as-is
-                        final_rule = rule_description
-            else:
-                continue  # Skip invalid rules
-            
-            # Extract example - prefer rule's example field, then from labeled examples
-            example_text = rule.get("example", "")
-            examples_covered = rule.get("examples_covered", [])
-            
-            # If rule has an example, use it (might be just the text, not full interaction)
-            if example_text and len(example_text) > 10:
-                # If it's just a quote/text, format it nicely
-                if not example_text.startswith("User:") and not example_text.startswith("Example:"):
-                    example_text = f"Example: \"{example_text}\""
-                # Otherwise use as-is
-            else:
-                example_text = ""  # Reset to find from labeled examples
-            
-            # Try to get an example from the examples_covered list
-            if examples_covered and len(matches) > 0:
-                # Handle different ID formats (could be 1-indexed or 0-indexed)
-                try:
-                    # Try to get an example from the covered list
-                    for covered_id in examples_covered[:3]:  # Try up to 3 IDs
-                        if isinstance(covered_id, int):
-                            # Try as 1-indexed first
-                            example_idx = covered_id - 1
-                            if example_idx < 0 or example_idx >= len(matches):
-                                # Try as 0-indexed
-                                example_idx = covered_id
-                            if 0 <= example_idx < len(matches):
-                                ex = matches[example_idx]
-                                example_text = f"User: {ex.get('user', '')}\nAssistant: {ex.get('assistant', '')}"
-                                break
-                except (IndexError, TypeError):
-                    pass
-            
-            # If still no example, rotate through matches to use different examples
-            if not example_text and len(matches) > 0:
-                # Use a different match example for each rule (rotate based on rule index)
-                example_idx = i % len(matches)  # Rotate through matches
-                ex = matches[example_idx]
-                example_text = f"User: {ex.get('user', '')}\nAssistant: {ex.get('assistant', '')}"
-            
-            # If still no example, use a representative NO_MATCH example
-            if not example_text and len(no_matches) > 0:
-                # Rotate through no_matches too
-                example_idx = i % len(no_matches)
-                ex = no_matches[example_idx]
-                example_text = f"User: {ex.get('user', '')}\nAssistant: {ex.get('assistant', '')}"
-            
-            # Last resort: create a meaningful example from the rule
-            if not example_text:
-                # Create a realistic example based on the rule
-                example_text = f"Example: {final_rule[:150]}"
-            
-            formatted_rules.append({
-                "id": f"suggested-rule-{i}",
-                "description": final_rule,  # Use executable rule format
-                "example": example_text,
-                "status": "pending_commander_audit",
-                "type": rule.get("type", "context_dependent"),
-                "confidence": rule.get("confidence", 0.8),
-            })
+                    print(f"WARNING: Rule generation returned None for example {ex_idx}")
+            except Exception as e:
+                print(f"ERROR: Rule generation failed for example {ex_idx}: {e}")
     
-    # If no rules were generated, raise error - no fallback
+    print(f"DEBUG: Generated {len(rule_results)} rules from {len(selected_examples)} examples")
+    
+    # Format rules from parallel results
+    formatted_rules = []
+    for i, (ex_idx, rule_result) in enumerate(sorted(rule_results, key=lambda x: x[0]), 1):
+        if not rule_result:
+            continue
+            
+        # Extract rule text
+        rule_text = rule_result.get("rule", "")
+        rule_description = rule_result.get("description", "")
+        
+        # Use the rule field if available and valid
+        if rule_text and len(rule_text) > 10:
+            final_rule = rule_text
+        elif rule_description and len(rule_description) > 10:
+            # Check if description follows the correct format
+            if rule_description.startswith("The ") and ("must" in rule_description.lower() or "must not" in rule_description.lower()):
+                final_rule = rule_description
+            else:
+                # Try to build rule from structured fields
+                check_location = rule_result.get("check_location", "output")
+                condition_type = rule_result.get("condition_type", "must_express")
+                condition = rule_result.get("condition", "")
+                
+                # Map check_location to readable format
+                location_map = {
+                    "output": "output",
+                    "input": "input",
+                    "assistant_message": "output",
+                    "user_message": "input"
+                }
+                readable_location = location_map.get(check_location, check_location)
+                
+                # Build rule in the correct format
+                if condition:
+                    if "must_not" in condition_type or "must not" in condition_type:
+                        final_rule = f"The {readable_location} must not {condition_type.replace('must_not_', '').replace('_', ' ')} {condition}"
+                    else:
+                        final_rule = f"The {readable_location} must {condition_type.replace('must_', '').replace('_', ' ')} {condition}"
+                else:
+                    final_rule = rule_description
+        else:
+            continue  # Skip invalid rules
+        
+        # Extract example from rule result or use the selected example
+        example_text = rule_result.get("example", "")
+        if not example_text or len(example_text) < 10:
+            # Use the selected example that generated this rule
+            if ex_idx < len(selected_examples):
+                ex = selected_examples[ex_idx]
+                example_text = f"User: {ex.get('user', '')}\nAssistant: {ex.get('assistant', '')}"
+            else:
+                # Fallback to first match
+                if matches:
+                    ex = matches[0]
+                    example_text = f"User: {ex.get('user', '')}\nAssistant: {ex.get('assistant', '')}"
+        
+        # Format example text nicely
+        if example_text and not example_text.startswith("User:") and not example_text.startswith("Example:"):
+            example_text = f"Example: \"{example_text}\""
+        
+        formatted_rules.append({
+            "id": f"suggested-rule-{i}",
+            "description": final_rule,
+            "example": example_text,
+            "status": "pending_commander_audit",
+            "type": rule_result.get("type", "context_dependent"),
+            "confidence": rule_result.get("confidence", 0.8),
+        })
+    
+    # If no rules were generated, raise error
     if not formatted_rules:
         print(f"ERROR: No rules generated from LLM for issue: '{issue_description}'")
-        print(f"DEBUG: Result keys: {result.keys() if isinstance(result, dict) else 'N/A'}")
-        # Raise exception instead of using fallback
-        raise Exception(f"Failed to generate rules from LLM. Result type: {type(result)}")
+        raise Exception(f"Failed to generate rules from LLM. Generated {len(rule_results)} rule results but none were valid.")
     
     return formatted_rules
 

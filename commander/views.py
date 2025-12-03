@@ -235,8 +235,9 @@ def home(request):
                 elif generated_examples is None and user_issue:
                     # Generate examples
                     try:
-                        examples = generate_examples_from_issue(user_issue)
+                        examples, rule_potential_scores = generate_examples_from_issue(user_issue)
                         request.session["generated_examples"] = examples
+                        request.session["rule_potential_scores"] = rule_potential_scores
                         request.session["searching"] = False
                         request.session["current_example_index"] = 0
                         request.session["loading_screen_shown"] = False
@@ -269,7 +270,8 @@ def home(request):
                     if pending_labeled_examples:
                         try:
                             print(f"DEBUG: ===== CALLING LLM TO GENERATE RULES =====")
-                            rules = generate_suggested_rules_from_examples(user_issue, pending_labeled_examples)
+                            rule_potential_scores = request.session.get("rule_potential_scores", {})
+                            rules = generate_suggested_rules_from_examples(user_issue, pending_labeled_examples, rule_potential_scores)
                             print(f"DEBUG: ===== LLM GENERATED {len(rules)} RULES =====")
                             request.session["generated_rules"] = rules
                             request.session["generating_rules"] = False
