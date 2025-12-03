@@ -63,7 +63,13 @@ def get_embedding(text: str) -> Optional[List[float]]:
             return None
             
     except Exception as e:
-        print(f"WARNING: Failed to generate embedding: {e}")
+        # Don't log full error for invalid API key (common case)
+        error_str = str(e)
+        if "401" in error_str or "invalid_api_key" in error_str or "Incorrect API key" in error_str:
+            # Silently fail - semantic caching will be disabled
+            return None
+        else:
+            print(f"WARNING: Failed to generate embedding: {e}")
         return None
 
 

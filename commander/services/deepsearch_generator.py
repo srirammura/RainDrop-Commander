@@ -302,8 +302,8 @@ def generate_examples_from_issue(issue_description: str) -> tuple:
         if len(all_examples) == 0:
             raise
     
-    # Validate we have examples - allow partial success (at least 6 examples)
-    if len(all_examples) >= 6:
+    # Validate we have examples - allow partial success (at least 3 examples)
+    if len(all_examples) >= 3:
         print(f"DEBUG: Generated {len(all_examples)} total examples from {len(genres)} genres")
         print(f"DEBUG: Evaluated rule potential for {len(rule_potential_scores)} examples")
         
@@ -321,12 +321,13 @@ def generate_examples_from_issue(issue_description: str) -> tuple:
         return all_examples, rule_potential_scores
     elif len(all_examples) > 0:
         # Partial success - we have some examples but not enough
-        print(f"WARNING: Only {len(all_examples)} examples generated (minimum 6 required), but continuing with partial results")
+        print(f"WARNING: Only {len(all_examples)} examples generated (minimum 3 required), but continuing with partial results")
         return all_examples, rule_potential_scores
     else:
         print(f"ERROR: No examples generated from LLM for issue: '{issue_description}'")
         print(f"DEBUG: Attempted {len(genres)} genres, got {len(all_examples)} examples")
-        raise Exception(f"Failed to generate examples from LLM. Generated {len(all_examples)} examples from {len(genres)} genres.")
+        print(f"DEBUG: This might be due to LLM API failures or invalid responses")
+        raise Exception(f"Failed to generate examples from LLM. Generated {len(all_examples)} examples from {len(genres)} genres. Check LLM API connectivity and response format.")
 
 
 def format_matches(matches: List[Dict[str, str]]) -> str:
