@@ -46,7 +46,7 @@ OUTPUT FORMAT (JSON):
 Return only valid JSON, no other text."""
 
     try:
-        result = generate_json(prompt, temperature=0.3, task_type="validation")
+        result = generate_json(prompt, temperature=0.3, task_type="validation", issue_hash=issue_hash)
         
         if isinstance(result, dict) and "score" in result:
             score = int(result.get("score", 50))

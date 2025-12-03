@@ -292,7 +292,7 @@ def generate_examples_from_issue(issue_description: str) -> tuple:
         with ThreadPoolExecutor(max_workers=min(len(genres), 6)) as executor:
             # Submit all genre generation tasks
             future_to_genre = {
-                executor.submit(_generate_examples_for_genre, genre["prompt"], genre["name"]): genre["name"]
+                executor.submit(_generate_examples_for_genre, genre["prompt"], genre["name"], issue_hash): genre["name"]
                 for genre in genres
             }
             
@@ -315,11 +315,11 @@ def generate_examples_from_issue(issue_description: str) -> tuple:
                         print(f"DEBUG: Evaluating rule potential for {len(genre_examples)} examples from genre '{genre_name}'...")
                         try:
                             with ThreadPoolExecutor(max_workers=min(len(genre_examples), 4)) as eval_executor:
-                                        eval_futures = {
-                                            eval_executor.submit(evaluate_rule_potential, ex, issue_description, issue_hash): 
-                                                (start_idx + i, ex)
-                                            for i, ex in enumerate(genre_examples)
-                                        }
+                                eval_futures = {
+                                    eval_executor.submit(evaluate_rule_potential, ex, issue_description, issue_hash): 
+                                        (start_idx + i, ex)
+                                    for i, ex in enumerate(genre_examples)
+                                }
                                 
                                 for eval_future in as_completed(eval_futures):
                                     ex_idx, ex = eval_futures[eval_future]
@@ -705,7 +705,7 @@ def generate_suggested_rules_from_examples(
     
     with ThreadPoolExecutor(max_workers=4) as executor:
         future_to_example = {
-            executor.submit(_generate_rule_for_example, ex, issue_description, no_matches): i
+            executor.submit(_generate_rule_for_example, ex, issue_description, no_matches, issue_hash): i
             for i, ex in enumerate(selected_examples)
         }
         
