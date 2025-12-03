@@ -15,6 +15,7 @@ from .services.mock_data import (
 from .services.effort_config import get_effort_statistics
 import json
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 def health_check(request):
@@ -366,8 +367,6 @@ def home(request):
                 suggested_rules = []
             
             # Audit all pending rules in parallel
-            from concurrent.futures import ThreadPoolExecutor, as_completed
-            
             # Prepare rules for auditing
             pending_rules = []
             for rule in suggested_rules:
