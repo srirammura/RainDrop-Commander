@@ -3,7 +3,7 @@ import os
 import json
 import hashlib
 import time
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any, Tuple, List
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -38,11 +38,11 @@ if REDIS_AVAILABLE and CACHE_ENABLED:
         # Handle TLS connections (rediss://) for Upstash and other providers
         if REDIS_URL.startswith("rediss://"):
             # For TLS connections, use ssl_cert_reqs=None to allow self-signed certs
+            # The rediss:// URL already indicates TLS, so we don't need ssl=True
             redis_client = redis.from_url(
                 REDIS_URL,
                 decode_responses=True,
-                ssl_cert_reqs=None,
-                ssl=True
+                ssl_cert_reqs=None
             )
         else:
             redis_client = redis.from_url(REDIS_URL, decode_responses=True)
