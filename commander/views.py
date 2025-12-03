@@ -365,11 +365,11 @@ def home(request):
             if not isinstance(suggested_rules, list):
                 suggested_rules = []
             
-            # Only audit first rule on initial load to prevent timeout
-            # Remaining audits will happen on subsequent page loads
-            rules_audited_this_request = 0
-            max_audits_per_request = 1  # Limit to 1 audit per request to prevent timeout
+            # Audit all pending rules in parallel
+            from concurrent.futures import ThreadPoolExecutor, as_completed
             
+            # Prepare rules for auditing
+            pending_rules = []
             for rule in suggested_rules:
                 # Ensure rule is a dict
                 if not isinstance(rule, dict):
@@ -379,16 +379,22 @@ def home(request):
                     rule["id"] = f"rule_{id(rule)}"
                 if "status" not in rule:
                     rule["status"] = "pending"
-                    
+                
                 # Only audit rules that haven't been audited yet
-                if rule.get("status") != "audited" and rules_audited_this_request < max_audits_per_request:
-                    examples_for_audit = labeled_examples.copy()
-                    examples_for_audit.append({
-                        "text": rule.get("example", ""),
-                        "label": "MATCH",
-                    })
+                if rule.get("status") != "audited":
+                    pending_rules.append(rule)
+            
+            # Audit all pending rules in parallel
+            if pending_rules and labeled_examples:
+                def audit_single_rule(rule):
+                    """Audit a single rule and update it in place."""
                     try:
-                        sys.stderr.write(f"DEBUG: Auditing rule {rule.get('id')}...\n")
+                        examples_for_audit = labeled_examples.copy()
+                        examples_for_audit.append({
+                            "text": rule.get("example", ""),
+                            "label": "MATCH",
+                        })
+                        sys.stderr.write(f"DEBUG: Starting audit for rule {rule.get('id')}...\n")
                         sys.stderr.flush()
                         commander = CommanderAgent(rule.get("description", ""), examples_for_audit)
                         audit_result = commander.audit_rule()
@@ -400,19 +406,38 @@ def home(request):
                             sys.stderr.flush()
                             rule["audit_result_json"] = "{}"
                         rule["status"] = "audited"
-                        rules_audited_this_request += 1
                         sys.stderr.write(f"DEBUG: Completed audit for rule {rule.get('id')}\n")
                         sys.stderr.flush()
+                        return rule
                     except Exception as e:
                         sys.stderr.write(f"ERROR: Audit failed for rule {rule.get('id')}: {e}\n")
                         sys.stderr.flush()
+                        import traceback
+                        traceback.print_exc()
                         rule["audit_error"] = str(e)
                         rule["status"] = "error"
                         rule["audit_result"] = None
                         rule["audit_result_json"] = "{}"
-                        rules_audited_this_request += 1
-                elif rule.get("status") != "audited":
-                    # Mark as pending audit for next request
+                        return rule
+                
+                # Run audits in parallel (limit to 4 workers to avoid overwhelming the API)
+                sys.stderr.write(f"DEBUG: Auditing {len(pending_rules)} rules in parallel...\n")
+                sys.stderr.flush()
+                with ThreadPoolExecutor(max_workers=min(len(pending_rules), 4)) as executor:
+                    futures = {executor.submit(audit_single_rule, rule): rule for rule in pending_rules}
+                    for future in as_completed(futures):
+                        rule = futures[future]
+                        try:
+                            future.result()  # This will raise if there was an exception
+                        except Exception as e:
+                            sys.stderr.write(f"ERROR: Unexpected error in audit future for rule {rule.get('id')}: {e}\n")
+                            sys.stderr.flush()
+                
+                sys.stderr.write(f"DEBUG: Completed parallel audits for {len(pending_rules)} rules\n")
+                sys.stderr.flush()
+            elif pending_rules:
+                # Mark as pending audit if we don't have labeled examples yet
+                for rule in pending_rules:
                     rule["status"] = "pending_audit"
                     rule["audit_result"] = None
                     rule["audit_result_json"] = "{}"
