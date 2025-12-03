@@ -109,8 +109,22 @@ def get_cached_result(
         try:
             cached = redis_client.get(exact_key)
             if cached:
-                print(f"DEBUG: Cache HIT (exact) for task: {task_type}")
-                return json.loads(cached)
+                try:
+                    result = json.loads(cached)
+                    # Validate cached result is not empty/invalid
+                    if result is None or (isinstance(result, dict) and len(result) == 0) or (isinstance(result, str) and len(result.strip()) == 0):
+                        print(f"WARNING: Cached result is empty/invalid, treating as cache miss")
+                        return None
+                    print(f"DEBUG: Cache HIT (exact) for task: {task_type}")
+                    return result
+                except json.JSONDecodeError as e:
+                    print(f"WARNING: Cached result is invalid JSON, treating as cache miss: {e}")
+                    # Delete invalid cache entry
+                    try:
+                        redis_client.delete(exact_key)
+                    except:
+                        pass
+                    return None
         except Exception as e:
             print(f"WARNING: Redis exact cache lookup failed: {e}")
     else:
@@ -118,6 +132,11 @@ def get_cached_result(
         if exact_key in _memory_cache:
             result, expiry = _memory_cache[exact_key]
             if time.time() < expiry:
+                # Validate cached result is not empty/invalid
+                if result is None or (isinstance(result, dict) and len(result) == 0) or (isinstance(result, str) and len(result.strip()) == 0):
+                    print(f"WARNING: Cached result is empty/invalid, treating as cache miss")
+                    del _memory_cache[exact_key]
+                    return None
                 print(f"DEBUG: Cache HIT (exact, memory) for task: {task_type}")
                 return result
             else:
@@ -203,6 +222,20 @@ def set_cached_result(
         temperature: Temperature used
     """
     if not CACHE_ENABLED:
+        return
+    
+    # Validate result before caching - don't cache empty/invalid results
+    if result is None:
+        print(f"DEBUG: Skipping cache - result is None")
+        return
+    if isinstance(result, dict) and len(result) == 0:
+        print(f"DEBUG: Skipping cache - result is empty dict")
+        return
+    if isinstance(result, str) and len(result.strip()) == 0:
+        print(f"DEBUG: Skipping cache - result is empty string")
+        return
+    if isinstance(result, list) and len(result) == 0:
+        print(f"DEBUG: Skipping cache - result is empty list")
         return
     
     ttl = _get_cache_ttl(task_type)

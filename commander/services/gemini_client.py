@@ -139,14 +139,24 @@ def generate_json(
         # Check cache first (use original prompt for cache key, not json_prompt)
         cached_result = get_cached_result(prompt, task_type, temperature)
         if cached_result is not None:
+            # Additional validation for cached JSON results
             if isinstance(cached_result, dict):
-                return cached_result
+                # Validate dict is not empty and has meaningful content
+                if len(cached_result) == 0:
+                    print(f"WARNING: Cached result is empty dict, treating as cache miss")
+                else:
+                    return cached_result
             elif isinstance(cached_result, str):
                 # Try to parse if it's a JSON string
                 try:
-                    return json.loads(cached_result)
-                except:
-                    return cached_result
+                    parsed = json.loads(cached_result)
+                    if isinstance(parsed, dict) and len(parsed) == 0:
+                        print(f"WARNING: Cached result parses to empty dict, treating as cache miss")
+                    else:
+                        return parsed
+                except json.JSONDecodeError:
+                    print(f"WARNING: Cached result is invalid JSON, treating as cache miss")
+                    # Don't return invalid cached result
         
         # Determine effort level
         effort_level = effort if effort else get_effort_level(task_type)
@@ -211,9 +221,19 @@ def generate_json(
             if text.endswith("```"):
                 text = text[:-3]
             text = text.strip()
-            parsed_json = json.loads(text)
+            try:
+                parsed_json = json.loads(text)
+            except json.JSONDecodeError as e:
+                print(f"ERROR: Failed to parse JSON response: {e}")
+                print(f"DEBUG: Response text (first 500 chars): {text[:500]}")
+                raise Exception(f"Failed to parse JSON response: {str(e)}")
         
-        # Cache the result
+        # Validate parsed JSON before caching
+        if not parsed_json or (isinstance(parsed_json, dict) and len(parsed_json) == 0):
+            print(f"WARNING: Parsed JSON is empty, not caching")
+            raise Exception("LLM returned empty JSON response")
+        
+        # Cache the result (validation inside set_cached_result will prevent caching empty results)
         set_cached_result(prompt, parsed_json, task_type, temperature)
         
         return parsed_json
