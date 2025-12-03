@@ -4,9 +4,13 @@ AI supervisor suite for auditing and improving classification rules in RainDrop'
 
 ## Features
 
-- **Red Team Tool**: Tests rule robustness against edge cases
-- **Overfit Detector**: Measures example diversity and variance
-- **Semantic Mapper**: Generates boundary examples for rule refinement
+- **DeepSearch Workflow**: Step-by-step issue detection and rule generation
+- **Commander Audit Suite**: Three AI tools (Red Teamer, Overfit Detector, Semantic Mapper) audit rules before deployment
+- **Dynamic LLM Generation**: Examples and rules generated dynamically based on user input
+- **Claude Opus 4.5**: Uses Anthropic's Claude Opus 4.5 for high-quality responses
+- **Effort Parameter**: Cost optimization through adaptive effort levels
+- **Prompt Caching**: Exact and semantic caching to reduce token usage and improve response times
+- **Parallel Agent Architecture**: Genre-based example generation and parallel rule generation for efficiency
 
 ## Local Development
 
