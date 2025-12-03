@@ -236,44 +236,71 @@ def generate_examples_from_issue(issue_description: str) -> tuple:
     all_examples = []
     rule_potential_scores = {}
     
-    with ThreadPoolExecutor(max_workers=len(genres)) as executor:
-        # Submit all genre generation tasks
-        future_to_genre = {
-            executor.submit(_generate_examples_for_genre, genre["prompt"], genre["name"]): genre["name"]
-            for genre in genres
-        }
-        
-        # Process results as they complete
-        for future in as_completed(future_to_genre):
-            genre_name = future_to_genre[future]
-            try:
-                genre_examples = future.result()
-                start_idx = len(all_examples)
-                all_examples.extend(genre_examples)
-                
-                # Step 3: Evaluate rule potential in parallel as examples arrive
-                if genre_examples:
-                    print(f"DEBUG: Evaluating rule potential for {len(genre_examples)} examples from genre '{genre_name}'...")
-                    with ThreadPoolExecutor(max_workers=min(len(genre_examples), 4)) as eval_executor:
-                        eval_futures = {
-                            eval_executor.submit(evaluate_rule_potential, ex, issue_description): 
-                                (start_idx + i, ex)
-                            for i, ex in enumerate(genre_examples)
-                        }
-                        
-                        for eval_future in as_completed(eval_futures):
-                            ex_idx, ex = eval_futures[eval_future]
-                            try:
-                                score_data = eval_future.result()
-                                rule_potential_scores[ex_idx] = score_data
-                                print(f"DEBUG: Example {ex_idx} rule potential score: {score_data.get('score', 0)}")
-                            except Exception as e:
-                                print(f"WARNING: Rule potential evaluation failed for example {ex_idx}: {e}")
-                                rule_potential_scores[ex_idx] = {"score": 50, "reasoning": f"Evaluation error: {e}"}
+    try:
+        with ThreadPoolExecutor(max_workers=min(len(genres), 6)) as executor:
+            # Submit all genre generation tasks
+            future_to_genre = {
+                executor.submit(_generate_examples_for_genre, genre["prompt"], genre["name"]): genre["name"]
+                for genre in genres
+            }
+            
+            print(f"DEBUG: Submitted {len(future_to_genre)} genre generation tasks")
+            
+            # Process results as they complete
+            completed_genres = 0
+            for future in as_completed(future_to_genre):
+                genre_name = future_to_genre[future]
+                completed_genres += 1
+                print(f"DEBUG: Processing results from genre '{genre_name}' ({completed_genres}/{len(genres)})")
+                try:
+                    genre_examples = future.result(timeout=120)  # 2 minute timeout per genre
+                    print(f"DEBUG: Genre '{genre_name}' returned {len(genre_examples)} examples")
+                    start_idx = len(all_examples)
+                    all_examples.extend(genre_examples)
+                    
+                    # Step 3: Evaluate rule potential in parallel as examples arrive
+                    if genre_examples:
+                        print(f"DEBUG: Evaluating rule potential for {len(genre_examples)} examples from genre '{genre_name}'...")
+                        try:
+                            with ThreadPoolExecutor(max_workers=min(len(genre_examples), 4)) as eval_executor:
+                                eval_futures = {
+                                    eval_executor.submit(evaluate_rule_potential, ex, issue_description): 
+                                        (start_idx + i, ex)
+                                    for i, ex in enumerate(genre_examples)
+                                }
                                 
-            except Exception as e:
-                print(f"ERROR: Genre '{genre_name}' generation failed: {e}")
-                # Continue with other genres
+                                for eval_future in as_completed(eval_futures):
+                                    ex_idx, ex = eval_futures[eval_future]
+                                    try:
+                                        score_data = eval_future.result(timeout=60)  # 1 minute timeout per evaluation
+                                        rule_potential_scores[ex_idx] = score_data
+                                        print(f"DEBUG: Example {ex_idx} rule potential score: {score_data.get('score', 0)}")
+                                    except Exception as e:
+                                        print(f"WARNING: Rule potential evaluation failed for example {ex_idx}: {e}")
+                                        import traceback
+                                        traceback.print_exc()
+                                        rule_potential_scores[ex_idx] = {"score": 50, "reasoning": f"Evaluation error: {e}"}
+                        except Exception as eval_error:
+                            print(f"ERROR: Rule potential evaluation executor failed for genre '{genre_name}': {eval_error}")
+                            import traceback
+                            traceback.print_exc()
+                            # Continue without rule potential scores for this genre
+                                
+                except Exception as e:
+                    print(f"ERROR: Genre '{genre_name}' generation failed: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    # Continue with other genres
+                    
+        print(f"DEBUG: Completed all genre generations. Total examples: {len(all_examples)}")
+        
+    except Exception as e:
+        print(f"ERROR: Parallel generation executor failed: {e}")
+        import traceback
+        traceback.print_exc()
+        # If we have some examples, continue with them
+        if len(all_examples) == 0:
+            raise
     
     # Validate we have examples
     if all_examples:

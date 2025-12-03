@@ -235,21 +235,29 @@ def home(request):
                 elif generated_examples is None and user_issue:
                     # Generate examples
                     try:
+                        print(f"DEBUG: Starting example generation for issue: '{user_issue[:50]}...'")
                         examples, rule_potential_scores = generate_examples_from_issue(user_issue)
+                        print(f"DEBUG: Example generation completed. Got {len(examples)} examples")
                         request.session["generated_examples"] = examples
                         request.session["rule_potential_scores"] = rule_potential_scores
                         request.session["searching"] = False
                         request.session["current_example_index"] = 0
                         request.session["loading_screen_shown"] = False
                         request.session.modified = True
+                        print(f"DEBUG: Redirecting to home with {len(examples)} examples")
                         return redirect("home")
                     except Exception as e:
                         print(f"ERROR: Failed to generate examples: {e}")
                         import traceback
                         traceback.print_exc()
+                        import sys
+                        sys.stderr.write(f"ERROR: Example generation failed: {e}\n")
+                        sys.stderr.write(traceback.format_exc())
+                        sys.stderr.flush()
                         request.session["user_issue"] = None
                         request.session["current_example_index"] = -2
                         request.session["searching"] = False
+                        request.session["error_message"] = f"Failed to generate examples: {str(e)}"
                         request.session.modified = True
                         return redirect("home")
             
