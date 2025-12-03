@@ -540,6 +540,10 @@ def _generate_rule_for_example(example: Dict[str, Any], issue_description: str, 
         user_msg = example.get("user", "")
         assistant_msg = example.get("assistant", "")
         
+        # Build no-match examples text
+        newline = "\n"
+        no_match_text = newline.join([f"User: {e.get('user', '')}\nAssistant: {e.get('assistant', '')}" for e in all_no_matches[:3]])
+        
         # Build focused prompt for this single example
         prompt = f"""Generate ONE actionable classification rule based on this specific example.
 
@@ -550,7 +554,7 @@ User: {user_msg}
 Assistant: {assistant_msg}
 
 CONTEXT (NO_MATCH examples to avoid false positives):
-{chr(10).join([f"User: {e.get('user', '')}\nAssistant: {e.get('assistant', '')}" for e in all_no_matches[:3]])}
+{no_match_text}
 
 REQUIREMENTS:
 1. Create ONE actionable rule that would correctly classify this example as MATCH
