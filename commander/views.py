@@ -278,7 +278,15 @@ def home(request):
                     if pending_labeled_examples:
                         try:
                             print(f"DEBUG: ===== CALLING LLM TO GENERATE RULES =====")
-                            rule_potential_scores = request.session.get("rule_potential_scores", {})
+                            rule_potential_scores_raw = request.session.get("rule_potential_scores", {})
+                            # Normalize keys to integers (Django session serialization converts int keys to strings)
+                            rule_potential_scores = {}
+                            for key, value in rule_potential_scores_raw.items():
+                                try:
+                                    int_key = int(key) if isinstance(key, str) else key
+                                    rule_potential_scores[int_key] = value
+                                except (ValueError, TypeError):
+                                    print(f"WARNING: Skipping invalid key in rule_potential_scores: {key}")
                             rules = generate_suggested_rules_from_examples(user_issue, pending_labeled_examples, rule_potential_scores)
                             print(f"DEBUG: ===== LLM GENERATED {len(rules)} RULES =====")
                             request.session["generated_rules"] = rules

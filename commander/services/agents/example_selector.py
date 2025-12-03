@@ -37,8 +37,15 @@ def select_top_examples(
     scores_text = ""
     if rule_potential_scores:
         scores_text = "\n\nRULE POTENTIAL SCORES:\n"
-        for idx, score_data in rule_potential_scores.items():
-            if idx < len(labeled_examples):
+        for idx_key, score_data in rule_potential_scores.items():
+            # Convert to int in case it's a string from JSON serialization
+            try:
+                idx = int(idx_key) if isinstance(idx_key, str) else idx_key
+            except (ValueError, TypeError):
+                print(f"WARNING: Invalid index key in rule_potential_scores: {idx_key}, skipping")
+                continue
+            
+            if isinstance(idx, int) and 0 <= idx < len(labeled_examples):
                 ex = labeled_examples[idx]
                 scores_text += f"Example {idx}: Score {score_data.get('score', 50)} - {score_data.get('reasoning', '')}\n"
     
