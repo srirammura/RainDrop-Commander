@@ -10,6 +10,10 @@ from commander.services.effort_config import (
     EFFORT_ENABLED,
     EffortLevel
 )
+from commander.services.cache_service import (
+    get_cached_result,
+    set_cached_result
+)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -36,7 +40,7 @@ def generate_text(
     effort: Optional[EffortLevel] = None
 ) -> str:
     """
-    Generate text using Anthropic Claude API with effort parameter support.
+    Generate text using Anthropic Claude API with effort parameter support and caching.
     
     Args:
         prompt: The prompt to send to Claude
@@ -49,6 +53,14 @@ def generate_text(
         Generated text string
     """
     try:
+        # Check cache first
+        cached_result = get_cached_result(prompt, task_type, temperature)
+        if cached_result is not None:
+            if isinstance(cached_result, str):
+                return cached_result
+            elif isinstance(cached_result, dict) and "text" in cached_result:
+                return cached_result["text"]
+        
         # Determine effort level
         effort_level = effort if effort else get_effort_level(task_type)
         effort_headers = get_effort_headers(effort_level)
@@ -90,11 +102,16 @@ def generate_text(
         # Claude returns content as a list of text blocks
         text_content = response.content[0]
         if hasattr(text_content, 'text'):
-            return text_content.text
+            result_text = text_content.text
         elif isinstance(text_content, str):
-            return text_content
+            result_text = text_content
         else:
             raise Exception(f"Unexpected content type: {type(text_content)}")
+        
+        # Cache the result
+        set_cached_result(prompt, result_text, task_type, temperature)
+        
+        return result_text
             
     except Exception as error:
         raise Exception(f"Failed to generate text: {str(error)}")
@@ -107,7 +124,7 @@ def generate_json(
     effort: Optional[EffortLevel] = None
 ) -> dict:
     """
-    Generate JSON response using Anthropic Claude API with effort parameter support.
+    Generate JSON response using Anthropic Claude API with effort parameter support and caching.
     
     Args:
         prompt: The prompt to send to Claude
@@ -119,6 +136,18 @@ def generate_json(
         Parsed JSON dictionary
     """
     try:
+        # Check cache first (use original prompt for cache key, not json_prompt)
+        cached_result = get_cached_result(prompt, task_type, temperature)
+        if cached_result is not None:
+            if isinstance(cached_result, dict):
+                return cached_result
+            elif isinstance(cached_result, str):
+                # Try to parse if it's a JSON string
+                try:
+                    return json.loads(cached_result)
+                except:
+                    return cached_result
+        
         # Determine effort level
         effort_level = effort if effort else get_effort_level(task_type)
         effort_headers = get_effort_headers(effort_level)
@@ -171,7 +200,7 @@ def generate_json(
         
         # Try to parse JSON
         try:
-            return json.loads(text)
+            parsed_json = json.loads(text)
         except json.JSONDecodeError:
             # Sometimes Claude returns JSON wrapped in markdown code blocks
             text = text.strip()
@@ -182,7 +211,12 @@ def generate_json(
             if text.endswith("```"):
                 text = text[:-3]
             text = text.strip()
-            return json.loads(text)
+            parsed_json = json.loads(text)
+        
+        # Cache the result
+        set_cached_result(prompt, parsed_json, task_type, temperature)
+        
+        return parsed_json
             
     except ValueError as ve:
         # Re-raise ValueError (content filter blocks) as-is so caller can handle

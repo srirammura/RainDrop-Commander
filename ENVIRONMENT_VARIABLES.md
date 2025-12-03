@@ -56,6 +56,70 @@
 - **Purpose**: Fallback effort level for unclassified tasks
 - **Used in**: `commander/services/effort_config.py`
 
+### 7. `CACHE_ENABLED`
+- **Description**: Enable/disable prompt caching (exact and semantic)
+- **Required**: No
+- **Default**: `true`
+- **Values**: `true` or `false` (as string)
+- **Purpose**: When enabled, caches LLM responses to reduce token usage and improve response times
+- **Used in**: `commander/services/cache_service.py`
+
+### 8. `REDIS_URL`
+- **Description**: Redis connection URL for distributed caching
+- **Required**: No (falls back to in-memory cache if not provided)
+- **Default**: `redis://localhost:6379/0`
+- **Values**: Valid Redis URL (e.g., `redis://localhost:6379/0`, `rediss://user:pass@host:6380/0`)
+- **Purpose**: Enables distributed caching across multiple instances
+- **Used in**: `commander/services/cache_service.py`
+
+### 9. `OPENAI_API_KEY`
+- **Description**: OpenAI API key for generating embeddings for semantic caching
+- **Required**: No (semantic caching disabled if not provided)
+- **Default**: None
+- **Values**: Valid OpenAI API key
+- **Purpose**: Used to generate embeddings for semantic similarity matching
+- **Used in**: `commander/services/embedding_service.py`
+
+### 10. `EMBEDDING_MODEL`
+- **Description**: OpenAI embedding model to use for semantic caching
+- **Required**: No
+- **Default**: `text-embedding-3-small`
+- **Values**: Valid OpenAI embedding model name
+- **Purpose**: Determines which embedding model to use for semantic similarity
+- **Used in**: `commander/services/embedding_service.py`
+
+### 11. `SEMANTIC_CACHE_THRESHOLD`
+- **Description**: Minimum similarity score (0.0-1.0) for semantic cache hits
+- **Required**: No
+- **Default**: `0.85`
+- **Values**: Float between 0.0 and 1.0
+- **Purpose**: Higher values (0.9+) require very similar prompts, lower values (0.7) allow more flexible matching
+- **Used in**: `commander/services/cache_service.py`
+
+### 12. `CACHE_TTL_EXAMPLES`
+- **Description**: Time-to-live for example generation cache entries (in seconds)
+- **Required**: No
+- **Default**: `604800` (7 days)
+- **Values**: Positive integer (seconds)
+- **Purpose**: How long to cache example generation results
+- **Used in**: `commander/services/cache_service.py`
+
+### 13. `CACHE_TTL_EVALUATION`
+- **Description**: Time-to-live for evaluation cache entries (in seconds)
+- **Required**: No
+- **Default**: `86400` (24 hours)
+- **Values**: Positive integer (seconds)
+- **Purpose**: How long to cache rule potential evaluation results
+- **Used in**: `commander/services/cache_service.py`
+
+### 14. `CACHE_TTL_DEFAULT`
+- **Description**: Default time-to-live for cache entries (in seconds)
+- **Required**: No
+- **Default**: `86400` (24 hours)
+- **Values**: Positive integer (seconds)
+- **Purpose**: Default TTL for cache entries that don't match specific task types
+- **Used in**: `commander/services/cache_service.py`
+
 ## Complete Environment Variables List
 
 ### For Local Development (.env file):
@@ -74,6 +138,12 @@ DEBUG=False
 ALLOWED_HOSTS=raindrop-commander.onrender.com
 CLAUDE_EFFORT_ENABLED=true
 CLAUDE_EFFORT_DEFAULT=medium
+CACHE_ENABLED=true
+REDIS_URL=redis://your-redis-host:6379/0
+OPENAI_API_KEY=sk-your-openai-api-key-here
+SEMANTIC_CACHE_THRESHOLD=0.85
+CACHE_TTL_EXAMPLES=604800
+CACHE_TTL_EVALUATION=86400
 ```
 
 ## Setting Environment Variables

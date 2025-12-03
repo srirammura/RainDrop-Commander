@@ -91,5 +91,9 @@ If you prefer the original Python deployment method, you can still use:
 - `ANTHROPIC_API_KEY`: Anthropic (Claude) API key (required)
 - `CLAUDE_EFFORT_ENABLED`: Enable effort parameter for cost optimization (optional, default: `true`)
 - `CLAUDE_EFFORT_DEFAULT`: Default effort level for unknown tasks (optional, default: `medium`)
+- `CACHE_ENABLED`: Enable prompt caching (optional, default: `true`)
+- `REDIS_URL`: Redis connection URL for distributed caching (optional, falls back to in-memory)
+- `OPENAI_API_KEY`: OpenAI API key for semantic caching embeddings (optional)
+- `SEMANTIC_CACHE_THRESHOLD`: Similarity threshold for semantic cache (optional, default: `0.85`)
 - `DEBUG`: Set to `False` in production
 - `ALLOWED_HOSTS`: Comma-separated list of allowed hosts
