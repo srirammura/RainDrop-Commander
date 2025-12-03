@@ -37,7 +37,8 @@ def generate_text(
     temperature: float = 0.7, 
     max_tokens: int = 2048,
     task_type: str = "reasoning",
-    effort: Optional[EffortLevel] = None
+    effort: Optional[EffortLevel] = None,
+    issue_hash: str = None
 ) -> str:
     """
     Generate text using Anthropic Claude API with effort parameter support and caching.
@@ -48,13 +49,14 @@ def generate_text(
         max_tokens: Maximum tokens to generate
         task_type: Type of task for effort level determination ("validation", "generation", "reasoning", etc.)
         effort: Optional explicit effort level override ("low", "medium", "high")
+        issue_hash: Optional hash of the issue description for cache isolation
     
     Returns:
         Generated text string
     """
     try:
         # Check cache first
-        cached_result = get_cached_result(prompt, task_type, temperature)
+        cached_result = get_cached_result(prompt, task_type, temperature, issue_hash)
         if cached_result is not None:
             if isinstance(cached_result, str):
                 return cached_result
@@ -109,7 +111,7 @@ def generate_text(
             raise Exception(f"Unexpected content type: {type(text_content)}")
         
         # Cache the result
-        set_cached_result(prompt, result_text, task_type, temperature)
+        set_cached_result(prompt, result_text, task_type, temperature, issue_hash)
         
         return result_text
             
@@ -121,7 +123,8 @@ def generate_json(
     prompt: str, 
     temperature: float = 0.3,
     task_type: str = "analysis",
-    effort: Optional[EffortLevel] = None
+    effort: Optional[EffortLevel] = None,
+    issue_hash: str = None
 ) -> dict:
     """
     Generate JSON response using Anthropic Claude API with effort parameter support and caching.
@@ -131,13 +134,14 @@ def generate_json(
         temperature: Sampling temperature (0.0-1.0)
         task_type: Type of task for effort level determination ("validation", "generation", "synthesis", etc.)
         effort: Optional explicit effort level override ("low", "medium", "high")
+        issue_hash: Optional hash of the issue description for cache isolation
     
     Returns:
         Parsed JSON dictionary
     """
     try:
         # Check cache first (use original prompt for cache key, not json_prompt)
-        cached_result = get_cached_result(prompt, task_type, temperature)
+        cached_result = get_cached_result(prompt, task_type, temperature, issue_hash)
         if cached_result is not None:
             # Additional validation for cached JSON results
             if isinstance(cached_result, dict):
@@ -234,7 +238,7 @@ def generate_json(
             raise Exception("LLM returned empty JSON response")
         
         # Cache the result (validation inside set_cached_result will prevent caching empty results)
-        set_cached_result(prompt, parsed_json, task_type, temperature)
+        set_cached_result(prompt, parsed_json, task_type, temperature, issue_hash)
         
         return parsed_json
             

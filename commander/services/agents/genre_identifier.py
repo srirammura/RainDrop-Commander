@@ -3,7 +3,7 @@ from typing import List, Dict, Any
 from commander.services.gemini_client import generate_json
 
 
-def identify_genres(issue_description: str) -> List[Dict[str, str]]:
+def identify_genres(issue_description: str, issue_hash: str = None) -> List[Dict[str, str]]:
     """
     Analyze issue description to identify distinct genres/categories.
     Returns a list of genre prompts, each optimized to generate 1-2 examples.
@@ -44,7 +44,7 @@ OUTPUT FORMAT (JSON):
 Return only valid JSON, no other text."""
 
     try:
-        result = generate_json(prompt, temperature=0.5, task_type="analysis")
+        result = generate_json(prompt, temperature=0.5, task_type="analysis", issue_hash=issue_hash)
         
         if isinstance(result, dict) and "genres" in result:
             genres = result["genres"]

@@ -7,6 +7,7 @@ from commander.services.agents.example_selector import select_top_examples
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import re
+import hashlib
 
 
 def generate_minimal_safe_prompt(issue_description: str, num: int = 15) -> str:
@@ -163,7 +164,7 @@ def sanitize_issue_description(description: str) -> str:
     return sanitized
 
 
-def _generate_examples_for_genre(genre_prompt: str, genre_name: str) -> List[Dict[str, str]]:
+def _generate_examples_for_genre(genre_prompt: str, genre_name: str, issue_hash: str = None) -> List[Dict[str, str]]:
     """Generate examples for a single genre using a focused prompt."""
     try:
         print(f"DEBUG: Generating examples for genre: {genre_name}")
@@ -188,7 +189,7 @@ CRITICAL: You must return your response as valid JSON in the following format:
 
 Return only valid JSON, no other text."""
         
-        result = generate_json(enhanced_prompt, temperature=0.7, task_type="generation")
+        result = generate_json(enhanced_prompt, temperature=0.7, task_type="generation", issue_hash=issue_hash)
         
         # Debug: Log the actual result structure
         print(f"DEBUG: Genre '{genre_name}' result type: {type(result)}")
@@ -273,9 +274,13 @@ def generate_examples_from_issue(issue_description: str) -> tuple:
     print(f"DEBUG: Issue description: '{issue_description}'")
     print(f"DEBUG: Using parallel genre-based generation")
     
+    # Compute issue hash for cache isolation
+    issue_hash = hashlib.md5(issue_description.encode('utf-8')).hexdigest()
+    print(f"DEBUG: Issue hash: {issue_hash}")
+    
     # Step 1: Identify genres
     print(f"DEBUG: Step 1: Identifying genres...")
-    genres = identify_genres(issue_description)
+    genres = identify_genres(issue_description, issue_hash)
     print(f"DEBUG: Identified {len(genres)} genres")
     
     # Step 2: Generate examples in parallel for each genre
@@ -310,11 +315,11 @@ def generate_examples_from_issue(issue_description: str) -> tuple:
                         print(f"DEBUG: Evaluating rule potential for {len(genre_examples)} examples from genre '{genre_name}'...")
                         try:
                             with ThreadPoolExecutor(max_workers=min(len(genre_examples), 4)) as eval_executor:
-                                eval_futures = {
-                                    eval_executor.submit(evaluate_rule_potential, ex, issue_description): 
-                                        (start_idx + i, ex)
-                                    for i, ex in enumerate(genre_examples)
-                                }
+                                        eval_futures = {
+                                            eval_executor.submit(evaluate_rule_potential, ex, issue_description, issue_hash): 
+                                                (start_idx + i, ex)
+                                            for i, ex in enumerate(genre_examples)
+                                        }
                                 
                                 for eval_future in as_completed(eval_futures):
                                     ex_idx, ex = eval_futures[eval_future]
@@ -613,7 +618,7 @@ Return only valid JSON.
     return prompt
 
 
-def _generate_rule_for_example(example: Dict[str, Any], issue_description: str, all_no_matches: List[Dict[str, str]]) -> Dict[str, Any]:
+def _generate_rule_for_example(example: Dict[str, Any], issue_description: str, all_no_matches: List[Dict[str, str]], issue_hash: str = None) -> Dict[str, Any]:
     """Generate a single rule based on one example."""
     try:
         user_msg = example.get("user", "")
@@ -655,7 +660,7 @@ OUTPUT FORMAT (JSON):
 
 Return only valid JSON, no other text."""
 
-        result = generate_json(prompt, temperature=0.5, task_type="rule_generation")
+        result = generate_json(prompt, temperature=0.5, task_type="rule_generation", issue_hash=issue_hash)
         return result
         
     except Exception as e:

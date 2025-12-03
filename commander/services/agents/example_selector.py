@@ -85,7 +85,7 @@ IMPORTANT: Return exactly 4 examples. You can repeat an example index if needed.
 Return only valid JSON, no other text."""
 
     try:
-        result = generate_json(prompt, temperature=0.4, task_type="analysis")
+        result = generate_json(prompt, temperature=0.4, task_type="analysis", issue_hash=issue_hash)
         
         if isinstance(result, dict) and "selected_examples" in result:
             selected = result["selected_examples"]

@@ -3,7 +3,7 @@ from typing import Dict, Any
 from commander.services.gemini_client import generate_json
 
 
-def evaluate_rule_potential(example: Dict[str, str], issue_description: str) -> Dict[str, Any]:
+def evaluate_rule_potential(example: Dict[str, str], issue_description: str, issue_hash: str = None) -> Dict[str, Any]:
     """
     Evaluate if an example has high potential for forming a solid generalized rule.
     

@@ -71,22 +71,28 @@ def _get_cache_ttl(task_type: str) -> int:
         return CACHE_TTL_DEFAULT
 
 
-def _get_exact_cache_key(prompt: str, task_type: str, temperature: float) -> str:
+def _get_exact_cache_key(prompt: str, task_type: str, temperature: float, issue_hash: str = None) -> str:
     """Generate exact cache key."""
-    cache_key = f"{prompt}|{task_type}|{temperature}"
+    if issue_hash:
+        cache_key = f"{issue_hash}|{prompt}|{task_type}|{temperature}"
+    else:
+        cache_key = f"{prompt}|{task_type}|{temperature}"
     prompt_hash = hashlib.md5(cache_key.encode()).hexdigest()
     return f"exact:{task_type}:{prompt_hash}"
 
 
-def _get_semantic_cache_key(task_type: str, embedding_hash: str) -> str:
+def _get_semantic_cache_key(task_type: str, embedding_hash: str, issue_hash: str = None) -> str:
     """Generate semantic cache key."""
+    if issue_hash:
+        return f"semantic:{task_type}:{issue_hash}:{embedding_hash}"
     return f"semantic:{task_type}:{embedding_hash}"
 
 
 def get_cached_result(
     prompt: str,
     task_type: str = "default",
-    temperature: float = 0.7
+    temperature: float = 0.7,
+    issue_hash: str = None
 ) -> Optional[Any]:
     """
     Get cached result for a prompt (exact match first, then semantic).
@@ -95,6 +101,7 @@ def get_cached_result(
         prompt: The prompt to look up
         task_type: Type of task (for cache key organization)
         temperature: Temperature used (affects cache key)
+        issue_hash: Optional hash of the issue description for cache isolation
         
     Returns:
         Cached result if found, None otherwise
@@ -103,7 +110,7 @@ def get_cached_result(
         return None
     
     # Step 1: Check exact cache
-    exact_key = _get_exact_cache_key(prompt, task_type, temperature)
+    exact_key = _get_exact_cache_key(prompt, task_type, temperature, issue_hash)
     
     if redis_client:
         try:
@@ -148,13 +155,16 @@ def get_cached_result(
         return None  # Can't do semantic search without embedding
     
     embedding_hash = get_embedding_hash(prompt_embedding)
-    semantic_key = _get_semantic_cache_key(task_type, embedding_hash)
+    semantic_key = _get_semantic_cache_key(task_type, embedding_hash, issue_hash)
     
     if redis_client:
         try:
-            # Get all semantic cache entries for this task type
+            # Get all semantic cache entries for this task type (and issue_hash if provided)
             # Limit to first 50 keys to avoid performance issues
-            pattern = f"semantic:{task_type}:*"
+            if issue_hash:
+                pattern = f"semantic:{task_type}:{issue_hash}:*"
+            else:
+                pattern = f"semantic:{task_type}:*"
             keys = redis_client.keys(pattern)[:50]  # Limit to 50 entries for performance
             
             best_match = None
@@ -257,7 +267,7 @@ def set_cached_result(
     prompt_embedding = get_embedding(prompt)
     if prompt_embedding:
         embedding_hash = get_embedding_hash(prompt_embedding)
-        semantic_key = _get_semantic_cache_key(task_type, embedding_hash)
+        semantic_key = _get_semantic_cache_key(task_type, embedding_hash, issue_hash)
         prompt_hash = hashlib.md5(prompt.encode()).hexdigest()
         
         semantic_data = {
