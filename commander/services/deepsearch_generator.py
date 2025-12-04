@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import re
 import hashlib
+import hashlib
 
 
 def generate_minimal_safe_prompt(issue_description: str, num: int = 15) -> str:

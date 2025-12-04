@@ -220,7 +220,8 @@ def set_cached_result(
     prompt: str,
     result: Any,
     task_type: str = "default",
-    temperature: float = 0.7
+    temperature: float = 0.7,
+    issue_hash: str = None
 ) -> None:
     """
     Store result in cache (both exact and semantic).
@@ -230,6 +231,7 @@ def set_cached_result(
         result: The result to cache
         task_type: Type of task
         temperature: Temperature used
+        issue_hash: Optional hash of the issue description for cache isolation
     """
     if not CACHE_ENABLED:
         return
@@ -251,7 +253,7 @@ def set_cached_result(
     ttl = _get_cache_ttl(task_type)
     
     # Store in exact cache
-    exact_key = _get_exact_cache_key(prompt, task_type, temperature)
+    exact_key = _get_exact_cache_key(prompt, task_type, temperature, issue_hash)
     
     if redis_client:
         try:
