@@ -6,7 +6,9 @@ from commander.services.gemini_client import generate_json
 def select_top_examples(
     labeled_examples: List[Dict[str, Any]], 
     issue_description: str,
-    rule_potential_scores: Dict[int, Dict[str, Any]] = None
+    rule_potential_scores: Dict[int, Dict[str, Any]] = None,
+    issue_hash: str = None,
+    num_to_select: int = 4
 ) -> List[Dict[str, Any]]:
     """
     Select top 4 examples (can be 2 examples repeated twice) that have highest potential
@@ -80,7 +82,7 @@ OUTPUT FORMAT (JSON):
     ]
 }}
 
-IMPORTANT: Return exactly 4 examples. You can repeat an example index if needed.
+IMPORTANT: Return exactly {num_to_select} examples. You can repeat an example index if needed.
 
 Return only valid JSON, no other text."""
 
@@ -90,14 +92,14 @@ Return only valid JSON, no other text."""
         if isinstance(result, dict) and "selected_examples" in result:
             selected = result["selected_examples"]
             
-            # Validate and ensure we have 4 selections
-            if len(selected) < 4:
-                print(f"WARNING: Only {len(selected)} examples selected, expected 4")
+            # Validate and ensure we have num_to_select selections
+            if len(selected) < num_to_select:
+                print(f"WARNING: Only {len(selected)} examples selected, expected {num_to_select}")
                 # Pad with last example if needed
-                while len(selected) < 4 and len(selected) > 0:
+                while len(selected) < num_to_select and len(selected) > 0:
                     selected.append(selected[-1])
-            elif len(selected) > 4:
-                selected = selected[:4]
+            elif len(selected) > num_to_select:
+                selected = selected[:num_to_select]
             
             # Map back to actual examples
             selected_examples = []
@@ -121,8 +123,8 @@ Return only valid JSON, no other text."""
                             "original_index": orig_idx
                         })
             
-            # Ensure we have exactly 4
-            while len(selected_examples) < 4 and len(match_examples) > 0:
+            # Ensure we have exactly num_to_select
+            while len(selected_examples) < num_to_select and len(match_examples) > 0:
                 # Repeat last example or first if needed
                 if selected_examples:
                     selected_examples.append(selected_examples[-1])
@@ -130,19 +132,19 @@ Return only valid JSON, no other text."""
                     orig_idx, ex = match_examples[0]
                     selected_examples.append({
                         **ex,
-                        "selection_reason": "Padding to reach 4 examples",
+                        "selection_reason": f"Padding to reach {num_to_select} examples",
                         "original_index": orig_idx
                     })
             
-            return selected_examples[:4]
+            return selected_examples[:num_to_select]
             
         else:
-            # Fallback: select first 4 MATCH examples
-            print("WARNING: Invalid selection result, using first 4 MATCH examples")
-            return [ex for _, ex in match_examples[:4]]
+            # Fallback: select first num_to_select MATCH examples
+            print(f"WARNING: Invalid selection result, using first {num_to_select} MATCH examples")
+            return [ex for _, ex in match_examples[:num_to_select]]
             
     except Exception as e:
         print(f"ERROR: Example selection failed: {e}")
-        # Fallback: return first 4 MATCH examples
-        return [ex for _, ex in match_examples[:4]]
+        # Fallback: return first num_to_select MATCH examples
+        return [ex for _, ex in match_examples[:num_to_select]]
 
