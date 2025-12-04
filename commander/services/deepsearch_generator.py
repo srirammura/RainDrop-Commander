@@ -690,9 +690,13 @@ def generate_suggested_rules_from_examples(
     
     print(f"DEBUG: MATCH examples: {len(matches)}, NO_MATCH examples: {len(no_matches)}")
     
+    # Compute issue hash for cache isolation
+    issue_hash = hashlib.md5(issue_description.encode('utf-8')).hexdigest()
+    print(f"DEBUG: Issue hash: {issue_hash}")
+    
     # Step 1: Select top 4 examples for rule generation
     print(f"DEBUG: Step 1: Selecting top 4 examples for rule generation...")
-    selected_examples = select_top_examples(examples, issue_description, rule_potential_scores)
+    selected_examples = select_top_examples(examples, issue_description, rule_potential_scores, issue_hash)
     print(f"DEBUG: Selected {len(selected_examples)} examples for rule generation")
     
     if len(selected_examples) == 0:
