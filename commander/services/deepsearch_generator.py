@@ -4,11 +4,10 @@ from commander.services.gemini_client import generate_json
 from commander.services.agents.genre_identifier import identify_genres
 from commander.services.agents.rule_potential_evaluator import evaluate_rule_potential
 from commander.services.agents.example_selector import select_top_examples
+from commander.services.dataset_service import sample_examples_from_wildchat
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import re
-import hashlib
-import hashlib
 import hashlib
 
 
