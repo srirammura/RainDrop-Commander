@@ -2,14 +2,7 @@ import os
 import json
 from anthropic import Anthropic
 from dotenv import load_dotenv
-from typing import Optional, Literal
-from commander.services.effort_config import (
-    get_effort_level,
-    get_effort_headers,
-    log_effort_usage,
-    EFFORT_ENABLED,
-    EffortLevel
-)
+from typing import Optional
 from commander.services.cache_service import (
     get_cached_result,
     set_cached_result
@@ -27,8 +20,8 @@ if not API_KEY:
 # Create client with timeout settings
 client = Anthropic(
     api_key=API_KEY,
-    timeout=60.0,  # 60 second timeout for individual API calls
-    max_retries=2  # Retry up to 2 times on failure
+    timeout=60.0,
+    max_retries=2
 )
 
 
@@ -37,18 +30,16 @@ def generate_text(
     temperature: float = 0.7, 
     max_tokens: int = 2048,
     task_type: str = "reasoning",
-    effort: Optional[EffortLevel] = None,
     issue_hash: str = None
 ) -> str:
     """
-    Generate text using Anthropic Claude API with effort parameter support and caching.
+    Generate text using Anthropic Claude API with caching.
     
     Args:
         prompt: The prompt to send to Claude
         temperature: Sampling temperature (0.0-1.0)
         max_tokens: Maximum tokens to generate
-        task_type: Type of task for effort level determination ("validation", "generation", "reasoning", etc.)
-        effort: Optional explicit effort level override ("low", "medium", "high")
+        task_type: Type of task for caching purposes
         issue_hash: Optional hash of the issue description for cache isolation
     
     Returns:
@@ -63,40 +54,16 @@ def generate_text(
             elif isinstance(cached_result, dict) and "text" in cached_result:
                 return cached_result["text"]
         
-        # Determine effort level
-        effort_level = effort if effort else get_effort_level(task_type)
-        effort_headers = get_effort_headers(effort_level)
-        log_effort_usage(effort_level, task_type)
-        
-        # Prepare request parameters
-        request_params = {
-            "model": MODEL_NAME,
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            "messages": [
+        # Make API call
+        response = client.messages.create(
+            model=MODEL_NAME,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            messages=[
                 {"role": "user", "content": prompt}
             ],
-            "timeout": 60.0,  # 60 second timeout for this specific call
-        }
-        
-        # Add effort headers if enabled
-        if effort_headers:
-            request_params["extra_headers"] = effort_headers
-        
-        # Make API call with fallback if effort not supported
-        try:
-            response = client.messages.create(**request_params)
-        except Exception as effort_error:
-            # If effort parameter causes error, retry without it
-            error_str = str(effort_error).lower()
-            if "effort" in error_str or "header" in error_str or "400" in error_str:
-                print(f"WARNING: Effort parameter not supported, falling back to default behavior")
-                log_effort_usage("fallback", task_type)
-                # Retry without effort headers
-                request_params.pop("extra_headers", None)
-                response = client.messages.create(**request_params)
-            else:
-                raise
+            timeout=60.0,
+        )
         
         if not response.content or len(response.content) == 0:
             raise Exception("Response blocked: No content returned.")
@@ -123,82 +90,48 @@ def generate_json(
     prompt: str, 
     temperature: float = 0.3,
     task_type: str = "analysis",
-    effort: Optional[EffortLevel] = None,
     issue_hash: str = None
 ) -> dict:
     """
-    Generate JSON response using Anthropic Claude API with effort parameter support and caching.
+    Generate JSON response using Anthropic Claude API with caching.
     
     Args:
         prompt: The prompt to send to Claude
         temperature: Sampling temperature (0.0-1.0)
-        task_type: Type of task for effort level determination ("validation", "generation", "synthesis", etc.)
-        effort: Optional explicit effort level override ("low", "medium", "high")
+        task_type: Type of task for caching purposes
         issue_hash: Optional hash of the issue description for cache isolation
     
     Returns:
         Parsed JSON dictionary
     """
     try:
-        # Check cache first (use original prompt for cache key, not json_prompt)
+        # Check cache first
         cached_result = get_cached_result(prompt, task_type, temperature, issue_hash)
         if cached_result is not None:
-            # Additional validation for cached JSON results
             if isinstance(cached_result, dict):
-                # Validate dict is not empty and has meaningful content
-                if len(cached_result) == 0:
-                    print(f"WARNING: Cached result is empty dict, treating as cache miss")
-                else:
+                if len(cached_result) > 0:
                     return cached_result
             elif isinstance(cached_result, str):
-                # Try to parse if it's a JSON string
                 try:
                     parsed = json.loads(cached_result)
-                    if isinstance(parsed, dict) and len(parsed) == 0:
-                        print(f"WARNING: Cached result parses to empty dict, treating as cache miss")
-                    else:
+                    if isinstance(parsed, dict) and len(parsed) > 0:
                         return parsed
                 except json.JSONDecodeError:
-                    print(f"WARNING: Cached result is invalid JSON, treating as cache miss")
-                    # Don't return invalid cached result
-        
-        # Determine effort level
-        effort_level = effort if effort else get_effort_level(task_type)
-        effort_headers = get_effort_headers(effort_level)
-        log_effort_usage(effort_level, task_type)
+                    pass
         
         # Add instruction to return JSON
         json_prompt = prompt + "\n\nReturn only valid JSON, no other text."
         
-        # Prepare request parameters
-        request_params = {
-            "model": MODEL_NAME,
-            "max_tokens": 4096,
-            "temperature": temperature,
-            "messages": [
+        # Make API call
+        response = client.messages.create(
+            model=MODEL_NAME,
+            max_tokens=4096,
+            temperature=temperature,
+            messages=[
                 {"role": "user", "content": json_prompt}
             ],
-            "timeout": 60.0,  # 60 second timeout for this specific call
-        }
-        
-        # Add effort headers if enabled
-        if effort_headers:
-            request_params["extra_headers"] = effort_headers
-        
-        # Make API call with fallback if effort not supported
-        try:
-            response = client.messages.create(**request_params)
-        except Exception as effort_error:
-            # If effort parameter causes error, retry without it
-            error_str = str(effort_error).lower()
-            if "effort" in error_str or "header" in error_str or "400" in error_str:
-                print(f"WARNING: Effort parameter not supported, falling back to default behavior")
-                log_effort_usage("fallback", task_type)
-                # Retry without effort headers
-                request_params.pop("extra_headers", None)
-                response = client.messages.create(**request_params)
-            else:
-                raise
+            timeout=60.0,
+        )
         
         if not response.content or len(response.content) == 0:
             raise Exception("Response blocked: No content returned.")
@@ -234,16 +167,14 @@ def generate_json(
         
         # Validate parsed JSON before caching
         if not parsed_json or (isinstance(parsed_json, dict) and len(parsed_json) == 0):
-            print(f"WARNING: Parsed JSON is empty, not caching")
             raise Exception("LLM returned empty JSON response")
         
-        # Cache the result (validation inside set_cached_result will prevent caching empty results)
+        # Cache the result
         set_cached_result(prompt, parsed_json, task_type, temperature, issue_hash)
         
         return parsed_json
             
     except ValueError as ve:
-        # Re-raise ValueError (content filter blocks) as-is so caller can handle
         raise ve
     except json.JSONDecodeError as e:
         raise Exception(f"Failed to parse JSON response: {str(e)}")

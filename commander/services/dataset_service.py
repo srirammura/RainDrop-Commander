@@ -37,14 +37,13 @@ def _extract_conversation_from_wildchat(example: Dict[str, Any]) -> Optional[Dic
     """
     try:
         # Try different possible field names
-        if "messages" in example:
-            messages = example["messages"]
-            if isinstance(messages, list) and len(messages) >= 2:
-                # Find user and assistant messages
+        if "conversation" in example:
+            conv = example["conversation"]
+            if isinstance(conv, list) and len(conv) >= 2:
                 user_msg = None
                 assistant_msg = None
                 
-                for msg in messages:
+                for msg in conv:
                     role = msg.get("role", "").lower()
                     content = msg.get("content", "")
                     
@@ -59,12 +58,21 @@ def _extract_conversation_from_wildchat(example: Dict[str, Any]) -> Optional[Dic
                         "assistant": assistant_msg
                     }
         
-        # Try alternative format
-        if "conversation" in example:
-            conv = example["conversation"]
-            if isinstance(conv, list) and len(conv) >= 2:
-                user_msg = conv[0].get("content", "") if conv[0].get("role", "").lower() == "user" else None
-                assistant_msg = conv[1].get("content", "") if conv[1].get("role", "").lower() in ["assistant", "model"] else None
+        # Try messages format
+        if "messages" in example:
+            messages = example["messages"]
+            if isinstance(messages, list) and len(messages) >= 2:
+                user_msg = None
+                assistant_msg = None
+                
+                for msg in messages:
+                    role = msg.get("role", "").lower()
+                    content = msg.get("content", "")
+                    
+                    if role == "user" and not user_msg:
+                        user_msg = content
+                    elif role in ["assistant", "model"] and not assistant_msg:
+                        assistant_msg = content
                 
                 if user_msg and assistant_msg:
                     return {
@@ -93,15 +101,15 @@ def _extract_conversation_from_wildchat(example: Dict[str, Any]) -> Optional[Dic
         return None
 
 
-def _classify_example_relevance(example: Dict[str, str], issue_description: str, issue_hash: str = None) -> Dict[str, Any]:
+def _score_example_relevance(example: Dict[str, str], issue_description: str, issue_hash: str = None) -> float:
     """
-    Use LLM to classify if an example is relevant to the issue (MATCH) or not (NO_MATCH).
-    Returns classification with category and reasoning.
+    Use LLM to score how relevant an example is to the issue.
+    Returns a relevance score from 0-100.
     """
-    user_msg = example.get("user", "")
-    assistant_msg = example.get("assistant", "")
+    user_msg = example.get("user", "")[:500]  # Truncate to avoid token limits
+    assistant_msg = example.get("assistant", "")[:500]
     
-    prompt = f"""Classify whether this user-assistant interaction demonstrates the following issue:
+    prompt = f"""Score how relevant this user-assistant interaction is to the following issue.
 
 ISSUE: "{issue_description}"
 
@@ -109,72 +117,55 @@ INTERACTION:
 User: {user_msg}
 Assistant: {assistant_msg}
 
-CLASSIFICATION TASK:
-1. Does this interaction clearly demonstrate the issue? (MATCH - SIMPLE_POSITIVE)
-2. Does this interaction clearly NOT demonstrate the issue? (NO_MATCH - SIMPLE_NEGATIVE)
-3. Does this interaction demonstrate the issue but in a subtle/indirect way? (MATCH - BOUNDARY_POSITIVE)
-4. Does this interaction share keywords with the issue but does NOT actually demonstrate it? (NO_MATCH - BOUNDARY_NEGATIVE)
+SCORING CRITERIA:
+- 90-100: This interaction CLEARLY demonstrates the issue
+- 70-89: This interaction is RELATED to the issue (similar context, partial match)
+- 40-69: This interaction is SOMEWHAT related (shares some keywords/concepts)
+- 0-39: This interaction is NOT related to the issue
+
+Consider:
+- Does the assistant's response show the problem described in the issue?
+- Is the topic/domain similar to what the issue describes?
+- Could this example be useful for training a classifier to detect this issue?
 
 OUTPUT FORMAT (JSON):
 {{
-    "user_label": "MATCH" or "NO_MATCH",
-    "category": "SIMPLE_POSITIVE" or "SIMPLE_NEGATIVE" or "BOUNDARY_POSITIVE" or "BOUNDARY_NEGATIVE",
-    "reasoning": "Brief explanation of why this classification was chosen",
-    "relevance_score": 0-100 (how relevant is this example to the issue)
+    "relevance_score": <0-100>,
+    "reasoning": "Brief explanation (max 50 words)"
 }}
 
 Return only valid JSON, no other text."""
 
     try:
-        result = generate_json(prompt, temperature=0.3, task_type="classification", issue_hash=issue_hash)
+        result = generate_json(prompt, temperature=0.2, task_type="classification", issue_hash=issue_hash)
         
         if isinstance(result, dict):
-            user_label = result.get("user_label", "NO_MATCH")
-            category = result.get("category", "SIMPLE_NEGATIVE")
-            reasoning = result.get("reasoning", "")
-            relevance_score = result.get("relevance_score", 50)
-            
-            return {
-                "user_label": user_label,
-                "category": category,
-                "reasoning": reasoning,
-                "relevance_score": relevance_score
-            }
-        else:
-            # Default classification
-            return {
-                "user_label": "NO_MATCH",
-                "category": "SIMPLE_NEGATIVE",
-                "reasoning": "Classification failed, defaulting to NO_MATCH",
-                "relevance_score": 0
-            }
+            score = result.get("relevance_score", 0)
+            if isinstance(score, (int, float)):
+                return float(score)
+        return 0.0
     except Exception as e:
-        print(f"WARNING: Failed to classify example relevance: {e}")
-        return {
-            "user_label": "NO_MATCH",
-            "category": "SIMPLE_NEGATIVE",
-            "reasoning": f"Classification error: {str(e)}",
-            "relevance_score": 0
-        }
+        print(f"WARNING: Failed to score example relevance: {e}")
+        return 0.0
 
 
-def sample_examples_from_wildchat(
+def sample_relevant_examples_from_wildchat(
     issue_description: str,
     num_examples: int = 12,
     issue_hash: str = None
 ) -> List[Dict[str, str]]:
     """
-    Sample examples from WildChat dataset that are relevant to the issue.
+    Sample the most relevant examples from WildChat dataset for the given issue.
     
     Args:
-        issue_description: The issue description to match against
-        num_examples: Number of examples to sample (target)
+        issue_description: The issue description to find examples for
+        num_examples: Number of examples to return
         issue_hash: Optional hash for cache isolation
         
     Returns:
-        List of examples in format: [{"user": "...", "assistant": "...", "user_label": "MATCH/NO_MATCH", "category": "...", "topic": "..."}]
+        List of examples in format: [{"user": "...", "assistant": "...", "relevance_score": ...}]
     """
-    print(f"DEBUG: Sampling {num_examples} examples from WildChat dataset for issue: '{issue_description[:50]}...'")
+    print(f"DEBUG: Sampling {num_examples} relevant examples from WildChat for issue: '{issue_description[:50]}...'")
     
     # Load dataset
     try:
@@ -185,29 +176,19 @@ def sample_examples_from_wildchat(
     
     # Use issue hash to seed random sampling (for reproducibility)
     if issue_hash:
-        random.seed(int(issue_hash[:8], 16))  # Use first 8 hex chars as seed
+        random.seed(int(issue_hash[:8], 16))
     
-    # Sample a larger pool first (3x target) to account for filtering
-    sample_pool_size = min(num_examples * 3, dataset_size)
+    # Sample a larger pool to find relevant examples (5x target)
+    sample_pool_size = min(num_examples * 5, dataset_size, 100)  # Cap at 100 to limit LLM calls
     print(f"DEBUG: Sampling {sample_pool_size} candidates from dataset of size {dataset_size:,}")
     
     # Randomly sample indices
     sampled_indices = random.sample(range(dataset_size), sample_pool_size)
     
-    # Extract conversations and classify them
-    classified_examples = []
-    match_count = 0
-    no_match_count = 0
-    
-    target_matches = int(num_examples * 0.6)  # 60% MATCH
-    target_no_matches = num_examples - target_matches  # 40% NO_MATCH
-    
-    print(f"DEBUG: Target distribution: {target_matches} MATCH, {target_no_matches} NO_MATCH")
+    # Extract conversations and score relevance
+    scored_examples = []
     
     for idx in sampled_indices:
-        if len(classified_examples) >= num_examples:
-            break
-        
         try:
             example = dataset[idx]
             conversation = _extract_conversation_from_wildchat(example)
@@ -215,47 +196,37 @@ def sample_examples_from_wildchat(
             if not conversation:
                 continue
             
-            # Classify relevance
-            classification = _classify_example_relevance(conversation, issue_description, issue_hash)
+            # Skip very short conversations
+            if len(conversation.get("user", "")) < 20 or len(conversation.get("assistant", "")) < 20:
+                continue
             
-            user_label = classification["user_label"]
-            category = classification["category"]
+            # Score relevance to the issue
+            relevance_score = _score_example_relevance(conversation, issue_description, issue_hash)
             
-            # Check if we need more of this type
-            if user_label == "MATCH":
-                if match_count < target_matches:
-                    classified_examples.append({
-                        "user": conversation["user"],
-                        "assistant": conversation["assistant"],
-                        "user_label": user_label,
-                        "category": category,
-                        "topic": classification.get("reasoning", "")[:100],  # Use reasoning as topic
-                        "relevance_score": classification.get("relevance_score", 50)
-                    })
-                    match_count += 1
-                    print(f"DEBUG: Added MATCH example ({match_count}/{target_matches})")
-            else:  # NO_MATCH
-                if no_match_count < target_no_matches:
-                    classified_examples.append({
-                        "user": conversation["user"],
-                        "assistant": conversation["assistant"],
-                        "user_label": user_label,
-                        "category": category,
-                        "topic": classification.get("reasoning", "")[:100],
-                        "relevance_score": classification.get("relevance_score", 0)
-                    })
-                    no_match_count += 1
-                    print(f"DEBUG: Added NO_MATCH example ({no_match_count}/{target_no_matches})")
+            if relevance_score > 30:  # Only keep somewhat relevant examples
+                scored_examples.append({
+                    "user": conversation["user"],
+                    "assistant": conversation["assistant"],
+                    "relevance_score": relevance_score
+                })
+                print(f"DEBUG: Found example with relevance score {relevance_score}")
+                
+                # Stop once we have enough high-quality examples
+                if len(scored_examples) >= num_examples * 2:
+                    break
             
         except Exception as e:
             print(f"WARNING: Failed to process example at index {idx}: {e}")
             continue
     
-    print(f"DEBUG: Sampled {len(classified_examples)} examples from WildChat ({match_count} MATCH, {no_match_count} NO_MATCH)")
+    # Sort by relevance and take top examples
+    scored_examples.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+    top_examples = scored_examples[:num_examples]
     
-    # If we don't have enough examples, try to fill with what we have
-    if len(classified_examples) < num_examples:
-        print(f"WARNING: Only found {len(classified_examples)} examples, target was {num_examples}")
+    print(f"DEBUG: Returning {len(top_examples)} most relevant examples from WildChat")
     
-    return classified_examples
-
+    if top_examples:
+        avg_score = sum(e.get("relevance_score", 0) for e in top_examples) / len(top_examples)
+        print(f"DEBUG: Average relevance score: {avg_score:.1f}")
+    
+    return top_examples

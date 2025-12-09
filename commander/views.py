@@ -2,20 +2,17 @@ from django.shortcuts import render, redirect
 from django.http import JsonResponse, HttpResponse
 from django.core.serializers.json import DjangoJSONEncoder
 from .forms import RuleAuditForm
-from .services.commander_agent import CommanderAgent
 from .services.deepsearch_generator import (
     generate_examples_from_issue,
-    generate_suggested_rules_from_examples,
+    generate_rules_from_examples,
 )
 from .services.mock_data import (
     get_mock_rule_by_id, 
     get_all_mock_rules,
     get_common_issues,
 )
-from .services.effort_config import get_effort_statistics
 import json
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 def health_check(request):
@@ -23,51 +20,29 @@ def health_check(request):
     return HttpResponse("OK", status=200)
 
 
-def effort_stats(request):
-    """Return effort parameter usage statistics for cost tracking."""
-    stats = get_effort_statistics()
-    return JsonResponse(stats)
-
-
 def home(request):
-    """Main view - Step-by-step DeepSearch workflow with Commander."""
+    """Main view - Step-by-step DeepSearch workflow."""
     import sys
     import traceback
     from django.http import HttpResponse
     
     # Handle HEAD requests (health checks) quickly
     if request.method == "HEAD":
-        sys.stderr.write("DEBUG: HEAD request received, returning 200\n")
-        sys.stderr.flush()
         return HttpResponse(status=200)
     
-    # Force output to stderr (which Render captures) immediately
     user_agent = request.META.get('HTTP_USER_AGENT', 'Unknown')
-    sys.stderr.write(f"DEBUG: home() view called - Method: {request.method}, Path: {request.path}, User-Agent: {user_agent}\n")
-    sys.stderr.flush()
     
-    # Handle health checks and monitoring requests more gracefully
+    # Handle health checks and monitoring requests
     if 'Go-http-client' in user_agent or 'health' in request.path.lower():
-        sys.stderr.write("DEBUG: Detected health check request, returning simple response\n")
-        sys.stderr.flush()
         return HttpResponse("OK", status=200)
     
-    # Wrap everything in a try-except to ensure we always return a response
     try:
-        sys.stderr.write("DEBUG: Getting common issues\n")
-        sys.stderr.flush()
         # Get common issues
         common_issues = get_common_issues()
-        sys.stderr.write(f"DEBUG: Got {len(common_issues)} common issues\n")
-        sys.stderr.flush()
         
         # Initialize session variables
-        if "example_labels" not in request.session:
-            request.session["example_labels"] = {}
         if "current_example_index" not in request.session:
             request.session["current_example_index"] = -2
-        if "current_rule_index" not in request.session:
-            request.session["current_rule_index"] = 0
         if "deployed_rules" not in request.session:
             request.session["deployed_rules"] = []
         if "rejected_rules" not in request.session:
@@ -75,9 +50,7 @@ def home(request):
         
         # Get session data
         user_issue = request.session.get("user_issue")
-        example_labels = request.session.get("example_labels", {})
         current_index = request.session.get("current_example_index", -2)
-        current_rule_index = request.session.get("current_rule_index", 0)
         generated_examples = request.session.get("generated_examples")
         generated_rules = request.session.get("generated_rules")
         is_searching = request.session.get("searching", False)
@@ -92,14 +65,10 @@ def home(request):
         else:
             deepsearch_issue = None
         
-        # Always get fresh suggested_rules from generated_rules
         suggested_rules = generated_rules if generated_rules else []
         
-        # Safely calculate total_examples
-        try:
-            total_examples = len(deepsearch_issue.get("examples", [])) if deepsearch_issue and isinstance(deepsearch_issue, dict) else 0
-        except (AttributeError, TypeError, KeyError):
-            total_examples = 0
+        # Calculate total_examples
+        total_examples = len(generated_examples) if generated_examples else 0
         
         # Handle POST requests
         if request.method == "POST":
@@ -112,55 +81,19 @@ def home(request):
                     request.session["current_example_index"] = -1
                     request.session["generated_examples"] = None
                     request.session["generated_rules"] = None
-                    request.session["example_labels"] = {}
                     request.session["loading_screen_shown"] = False
                     request.session.modified = True
                     return redirect("home")
             
-            # Handle marking an example
-            elif "mark_example" in request.POST:
-                example_index = int(request.POST.get("example_index"))
-                label = request.POST.get("label")
-                
-                # Get fresh examples from session
-                examples_to_use = request.session.get("generated_examples")
-                if not examples_to_use:
-                    print(f"ERROR: No generated_examples in session when marking example {example_index}")
-                    request.session["error_message"] = "Examples not found. Please start over."
-                    request.session["user_issue"] = None
-                    request.session["current_example_index"] = -2
-                    request.session.modified = True
-                    return redirect("home")
-                
-                total_examples = len(examples_to_use)
-                
-                example_labels[str(example_index)] = label
-                request.session["example_labels"] = example_labels
-                request.session.modified = True
-                
-                if example_index < total_examples - 1:
-                    request.session["current_example_index"] = example_index + 1
-                    request.session.modified = True
-                    return redirect("home")
-                else:
-                    # All examples labeled, prepare for rules generation
-                    labeled_examples_list = []
-                    for i, ex in enumerate(examples_to_use):
-                        label = example_labels.get(str(i), "MATCH")
-                        labeled_examples_list.append({
-                            "user": ex.get("user", ""),
-                            "assistant": ex.get("assistant", ""),
-                            "user_label": label,
-                        })
-                    
-                    print(f"DEBUG: All {total_examples} examples labeled. Setting up rules generation.")
+            # Handle viewing examples and moving to rules
+            elif "view_examples_done" in request.POST:
+                # User has reviewed examples, generate rules
+                if generated_examples and user_issue:
                     request.session["generating_rules"] = True
                     request.session["current_example_index"] = -3
                     request.session["generated_rules"] = None
-                    request.session["pending_labeled_examples"] = labeled_examples_list
                     request.session["rules_loading_screen_shown"] = False
                     request.session.modified = True
-                    print(f"DEBUG: Session set - generating_rules=True, current_index=-3")
                     return redirect("home")
             
             # Handle deploying a rule
@@ -188,7 +121,6 @@ def home(request):
                     request.session.modified = True
                     return redirect("home")
                 
-                # Stay on the same page to show all rules
                 return redirect("home")
             
             # Handle rejecting a rule
@@ -216,451 +148,133 @@ def home(request):
                     request.session.modified = True
                     return redirect("home")
                 
-                # Stay on the same page to show all rules
                 return redirect("home")
         
         # Determine current step
         step = "issue_input"
-        current_example = None
         
-        print(f"DEBUG: Step determination - is_searching={is_searching}, is_generating_rules={is_generating_rules}, current_index={current_index}, user_issue={user_issue is not None}, generated_examples={generated_examples is not None}")
+        print(f"DEBUG: Step determination - is_searching={is_searching}, is_generating_rules={is_generating_rules}, current_index={current_index}")
         
-        try:
-            # Check if searching (loading examples)
-            if is_searching and current_index == -1:
-                step = "searching"
-                loading_screen_shown = request.session.get("loading_screen_shown", False)
-                if not loading_screen_shown:
-                    request.session["loading_screen_shown"] = True
+        # Check if searching (loading examples)
+        if is_searching and current_index == -1:
+            step = "searching"
+            loading_screen_shown = request.session.get("loading_screen_shown", False)
+            if not loading_screen_shown:
+                request.session["loading_screen_shown"] = True
+                request.session.modified = True
+            elif generated_examples is None and user_issue:
+                # Generate examples from WildChat
+                try:
+                    print(f"DEBUG: Starting example sampling for issue: '{user_issue[:50]}...'")
+                    examples = generate_examples_from_issue(user_issue)
+                    print(f"DEBUG: Example sampling completed. Got {len(examples)} examples")
+                    request.session["generated_examples"] = examples
+                    request.session["searching"] = False
+                    request.session["current_example_index"] = 0
+                    request.session["loading_screen_shown"] = False
                     request.session.modified = True
-                elif generated_examples is None and user_issue:
-                    # Generate examples
-                    try:
-                        print(f"DEBUG: Starting example generation for issue: '{user_issue[:50]}...'")
-                        examples, rule_potential_scores = generate_examples_from_issue(user_issue)
-                        print(f"DEBUG: Example generation completed. Got {len(examples)} examples")
-                        request.session["generated_examples"] = examples
-                        request.session["rule_potential_scores"] = rule_potential_scores
-                        request.session["searching"] = False
-                        request.session["current_example_index"] = 0
-                        request.session["loading_screen_shown"] = False
-                        request.session.modified = True
-                        print(f"DEBUG: Redirecting to home with {len(examples)} examples")
-                        return redirect("home")
-                    except Exception as e:
-                        print(f"ERROR: Failed to generate examples: {e}")
-                        import traceback
-                        traceback.print_exc()
-                        import sys
-                        sys.stderr.write(f"ERROR: Example generation failed: {e}\n")
-                        sys.stderr.write(traceback.format_exc())
-                        sys.stderr.flush()
-                        request.session["user_issue"] = None
-                        request.session["current_example_index"] = -2
-                        request.session["searching"] = False
-                        request.session["error_message"] = f"Failed to generate examples: {str(e)}"
-                        request.session.modified = True
-                        return redirect("home")
-            
-            # Check if generating rules
-            elif is_generating_rules and current_index == -3:
-                print(f"DEBUG: Detected rules generation step - is_generating_rules={is_generating_rules}, current_index={current_index}")
-                step = "generating_rules"
-                rules_loading_screen_shown = request.session.get("rules_loading_screen_shown", False)
-                if not rules_loading_screen_shown:
-                    # First time showing loading screen, set flag
-                    request.session["rules_loading_screen_shown"] = True
+                    return redirect("home")
+                except Exception as e:
+                    print(f"ERROR: Failed to sample examples: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    request.session["user_issue"] = None
+                    request.session["current_example_index"] = -2
+                    request.session["searching"] = False
+                    request.session["error_message"] = f"Failed to find examples: {str(e)}"
                     request.session.modified = True
-                    print(f"DEBUG: First time showing rules loading screen")
-                elif generated_rules is None and user_issue:
-                    # Loading screen already shown, now generate rules
-                    pending_labeled_examples = request.session.get("pending_labeled_examples")
-                    print(f"DEBUG: About to generate rules. pending_labeled_examples: {pending_labeled_examples is not None}")
-                    if pending_labeled_examples:
-                        try:
-                            print(f"DEBUG: ===== CALLING LLM TO GENERATE RULES =====")
-                            rule_potential_scores_raw = request.session.get("rule_potential_scores", {})
-                            # Normalize keys to integers (Django session serialization converts int keys to strings)
-                            rule_potential_scores = {}
-                            for key, value in rule_potential_scores_raw.items():
-                                try:
-                                    int_key = int(key) if isinstance(key, str) else key
-                                    rule_potential_scores[int_key] = value
-                                except (ValueError, TypeError):
-                                    print(f"WARNING: Skipping invalid key in rule_potential_scores: {key}")
-                            rules = generate_suggested_rules_from_examples(user_issue, pending_labeled_examples, rule_potential_scores)
-                            print(f"DEBUG: ===== LLM GENERATED {len(rules)} RULES =====")
-                            request.session["generated_rules"] = rules
-                            request.session["generating_rules"] = False
-                            request.session["current_example_index"] = -1
-                            request.session["pending_labeled_examples"] = None
-                            request.session["rules_loading_screen_shown"] = False
-                            request.session["current_rule_index"] = 0
-                            request.session.modified = True
-                            print(f"DEBUG: Rules generated, redirecting to rules review")
-                            return redirect("home")
-                        except Exception as e:
-                            print(f"ERROR: Failed to generate rules: {e}")
-                            import traceback
-                            traceback.print_exc()
-                            request.session["user_issue"] = None
-                            request.session["current_example_index"] = -2
-                            request.session["generating_rules"] = False
-                            request.session.modified = True
-                            return redirect("home")
-                    else:
-                        print(f"ERROR: No pending_labeled_examples found")
-                        request.session["user_issue"] = None
-                        request.session["current_example_index"] = -2
-                        request.session["generating_rules"] = False
-                        request.session.modified = True
-                        return redirect("home")
-            
-            # Show labeling step
-            elif current_index >= 0 and generated_examples and user_issue:
-                step = "labeling_examples"
-                if deepsearch_issue and deepsearch_issue.get("examples") and current_index < len(deepsearch_issue["examples"]):
-                    current_example = deepsearch_issue["examples"][current_index]
-            
-            # Show rules review
-            elif current_index == -1:
-                # Get fresh generated_rules from session
-                generated_rules = request.session.get("generated_rules")
-                if generated_rules and len(generated_rules) > 0:
-                    # Rebuild suggested_rules from generated_rules to ensure it's up to date
-                    suggested_rules = generated_rules
-                    step = "rules_review"
-                    print(f"DEBUG: Showing rules review - {len(suggested_rules)} rules available")
+                    return redirect("home")
+        
+        # Check if generating rules
+        elif is_generating_rules and current_index == -3:
+            step = "generating_rules"
+            rules_loading_screen_shown = request.session.get("rules_loading_screen_shown", False)
+            if not rules_loading_screen_shown:
+                request.session["rules_loading_screen_shown"] = True
+                request.session.modified = True
+            elif generated_rules is None and user_issue and generated_examples:
+                # Generate rules from examples
+                try:
+                    print(f"DEBUG: Generating rules from {len(generated_examples)} examples")
+                    rules = generate_rules_from_examples(user_issue, generated_examples)
+                    print(f"DEBUG: Generated {len(rules)} rules")
+                    request.session["generated_rules"] = rules
+                    request.session["generating_rules"] = False
+                    request.session["current_example_index"] = -1
+                    request.session["rules_loading_screen_shown"] = False
+                    request.session.modified = True
+                    return redirect("home")
+                except Exception as e:
+                    print(f"ERROR: Failed to generate rules: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    request.session["user_issue"] = None
+                    request.session["current_example_index"] = -2
+                    request.session["generating_rules"] = False
+                    request.session.modified = True
+                    return redirect("home")
+        
+        # Show examples review
+        elif current_index >= 0 and generated_examples and user_issue:
+            step = "viewing_examples"
+        
+        # Show rules review
+        elif current_index == -1:
+            generated_rules = request.session.get("generated_rules")
+            if generated_rules and len(generated_rules) > 0:
+                suggested_rules = generated_rules
+                step = "rules_review"
+            else:
+                if is_generating_rules:
+                    step = "generating_rules"
                 else:
-                    # No rules yet, might still be generating
-                    if is_generating_rules:
-                        step = "generating_rules"
-                    else:
-                        step = "issue_input"
-        except Exception as step_error:
-            print(f"ERROR in step determination: {step_error}")
-            import traceback
-            traceback.print_exc()
-            step = "issue_input"  # Fallback to safe state
-        
-        # Build labeled examples and audit rules
-        if step == "rules_review":
-            # Ensure deepsearch_issue is built if we have examples
-            if not deepsearch_issue and user_issue and generated_examples:
-                deepsearch_issue = {
-                    "description": user_issue,
-                    "examples": generated_examples,
-                }
-            
-            labeled_examples = []
-            if deepsearch_issue and deepsearch_issue.get("examples"):
-                for i, ex in enumerate(deepsearch_issue["examples"]):
-                    label = example_labels.get(str(i), "MATCH")
-                    labeled_examples.append({
-                        "text": f"User: {ex['user']}\nAssistant: {ex['assistant']}",
-                        "label": label,
-                    })
-            
-            # Audit rules - but only if not already audited and limit to prevent timeout
-            # Ensure suggested_rules is a list
-            if not isinstance(suggested_rules, list):
-                suggested_rules = []
-            
-            # Audit all pending rules in parallel
-            # Prepare rules for auditing
-            pending_rules = []
-            for rule in suggested_rules:
-                # Ensure rule is a dict
-                if not isinstance(rule, dict):
-                    continue
-                # Ensure rule has required keys
-                if "id" not in rule:
-                    rule["id"] = f"rule_{id(rule)}"
-                if "status" not in rule:
-                    rule["status"] = "pending"
-                
-                # Only audit rules that haven't been audited yet
-                if rule.get("status") != "audited":
-                    pending_rules.append(rule)
-            
-            # Audit all pending rules in parallel
-            if pending_rules and labeled_examples:
-                def audit_single_rule(rule):
-                    """Audit a single rule and update it in place."""
-                    try:
-                        examples_for_audit = labeled_examples.copy()
-                        examples_for_audit.append({
-                            "text": rule.get("example", ""),
-                            "label": "MATCH",
-                        })
-                        sys.stderr.write(f"DEBUG: Starting audit for rule {rule.get('id')}...\n")
-                        sys.stderr.flush()
-                        commander = CommanderAgent(rule.get("description", ""), examples_for_audit)
-                        audit_result = commander.audit_rule()
-                        rule["audit_result"] = audit_result
-                        try:
-                            rule["audit_result_json"] = json.dumps(audit_result, cls=DjangoJSONEncoder, default=str)
-                        except Exception as json_err:
-                            sys.stderr.write(f"WARNING: Failed to JSON encode audit_result for rule {rule.get('id')}: {json_err}\n")
-                            sys.stderr.flush()
-                            rule["audit_result_json"] = "{}"
-                        rule["status"] = "audited"
-                        sys.stderr.write(f"DEBUG: Completed audit for rule {rule.get('id')}\n")
-                        sys.stderr.flush()
-                        return rule
-                    except Exception as e:
-                        sys.stderr.write(f"ERROR: Audit failed for rule {rule.get('id')}: {e}\n")
-                        sys.stderr.flush()
-                        import traceback
-                        traceback.print_exc()
-                        rule["audit_error"] = str(e)
-                        rule["status"] = "error"
-                        rule["audit_result"] = None
-                        rule["audit_result_json"] = "{}"
-                        return rule
-                
-                # Run audits in parallel (limit to 4 workers to avoid overwhelming the API)
-                sys.stderr.write(f"DEBUG: Auditing {len(pending_rules)} rules in parallel...\n")
-                sys.stderr.flush()
-                with ThreadPoolExecutor(max_workers=min(len(pending_rules), 4)) as executor:
-                    futures = {executor.submit(audit_single_rule, rule): rule for rule in pending_rules}
-                    for future in as_completed(futures):
-                        rule = futures[future]
-                        try:
-                            future.result()  # This will raise if there was an exception
-                        except Exception as e:
-                            sys.stderr.write(f"ERROR: Unexpected error in audit future for rule {rule.get('id')}: {e}\n")
-                            sys.stderr.flush()
-                
-                sys.stderr.write(f"DEBUG: Completed parallel audits for {len(pending_rules)} rules\n")
-                sys.stderr.flush()
-            elif pending_rules:
-                # Mark as pending audit if we don't have labeled examples yet
-                for rule in pending_rules:
-                    rule["status"] = "pending_audit"
-                    rule["audit_result"] = None
-                    rule["audit_result_json"] = "{}"
+                    step = "issue_input"
         
         # Mark deployed and rejected rules
         deployed_rules = request.session.get("deployed_rules", [])
         rejected_rules = request.session.get("rejected_rules", [])
-        # Ensure suggested_rules is always a list
-        if not isinstance(suggested_rules, list):
-            suggested_rules = []
-        for rule in suggested_rules:
-            # Ensure rule is a dict
+        
+        for i, rule in enumerate(suggested_rules):
             if not isinstance(rule, dict):
                 continue
-            # Ensure rule has an id
             if "id" not in rule:
-                rule["id"] = f"rule_{id(rule)}"
+                rule["id"] = f"rule_{i}"
             if rule.get("id") in deployed_rules:
                 rule["deployed"] = True
             if rule.get("id") in rejected_rules:
                 rule["user_rejected"] = True
         
-        # Show all non-rejected rules in rules_review
-        # Ensure all rules are dicts with required keys
-        display_rules = []
-        if isinstance(suggested_rules, list):
-            for r in suggested_rules:
-                if not isinstance(r, dict):
-                    continue
-                if "id" not in r:
-                    r["id"] = f"rule_{id(r)}"
-                if not r.get("user_rejected", False):
-                    display_rules.append(r)
+        # Filter out rejected rules for display
+        display_rules = [r for r in suggested_rules if isinstance(r, dict) and not r.get("user_rejected", False)]
         
-        # Context - ensure all variables are properly initialized
+        # Context
         display_user_issue = None if step == "issue_input" else user_issue
+        total_rules = len(display_rules)
         
-        # Ensure deepsearch_issue is None if not set
-        if deepsearch_issue is None:
-            deepsearch_issue = None
+        print(f"DEBUG: Building context - step={step}, total_examples={total_examples}, total_rules={total_rules}")
         
-        # Ensure current_example is None if not set
-        if current_example is None:
-            current_example = None
+        context = {
+            "common_issues": common_issues,
+            "user_issue": display_user_issue,
+            "deepsearch_issue": deepsearch_issue,
+            "suggested_rules": display_rules,
+            "current_example_index": current_index,
+            "total_examples": total_examples,
+            "step": step,
+            "deployed_rules": deployed_rules,
+            "is_searching": is_searching,
+            "is_generating_rules": is_generating_rules,
+            "total_rules": total_rules,
+        }
         
-        # Calculate total_rules safely
-        total_rules = len([r for r in suggested_rules if isinstance(suggested_rules, list) and not r.get("user_rejected", False)]) if isinstance(suggested_rules, list) else 0
+        return render(request, "commander/home.html", context)
         
-        print(f"DEBUG: Building context - step={step}, total_examples={total_examples}, total_rules={total_rules}, display_rules_count={len(display_rules)}")
-        sys.stderr.write(f"DEBUG: Building context - step={step}, total_examples={total_examples}, total_rules={total_rules}, display_rules_count={len(display_rules)}\n")
-        sys.stderr.flush()
-        
-        try:
-            sys.stderr.write("DEBUG: Creating context dictionary\n")
-            sys.stderr.flush()
-            context = {
-                "common_issues": common_issues,
-                "user_issue": display_user_issue,
-                "deepsearch_issue": deepsearch_issue,
-                "suggested_rules": display_rules,
-                "current_example_index": current_index,
-                "current_example": current_example,
-                "total_examples": total_examples,
-                "example_labels": example_labels if example_labels else {},
-                "step": step,
-                "progress": (len(example_labels) / total_examples * 100) if total_examples > 0 and example_labels else 0,
-                "deployed_rules": deployed_rules if deployed_rules else [],
-                "is_searching": is_searching,
-                "is_generating_rules": is_generating_rules,
-                "total_rules": total_rules,
-            }
-            sys.stderr.write("DEBUG: Context dictionary created\n")
-            sys.stderr.flush()
-            
-            sys.stderr.write("DEBUG: Context built successfully, attempting to render template\n")
-            sys.stderr.flush()
-            
-            # Check if this is a health check request before expensive template rendering
-            user_agent = request.META.get('HTTP_USER_AGENT', '')
-            if 'Go-http-client' in user_agent:
-                sys.stderr.write("DEBUG: Health check detected during render, returning early\n")
-                sys.stderr.flush()
-                return HttpResponse("OK", status=200)
-            
-            print(f"DEBUG: Context built successfully, attempting to render template")
-            # Force flush stdout to ensure print is visible
-            import sys as sys_module
-            sys_module.stdout.flush()
-            sys.stderr.write("DEBUG: Print statement executed, continuing...\n")
-            sys.stderr.flush()
-            
-            # Reset error count on successful request
-            sys.stderr.write("DEBUG: About to update session\n")
-            sys.stderr.flush()
-            try:
-                if "error_count" in request.session:
-                    sys.stderr.write("DEBUG: Resetting error_count in session\n")
-                    sys.stderr.flush()
-                    request.session["error_count"] = 0
-                    request.session.modified = True
-                sys.stderr.write("DEBUG: Session updated successfully\n")
-                sys.stderr.flush()
-            except Exception as session_err:
-                error_tb = traceback.format_exc()
-                sys.stderr.write(f"WARNING: Session update failed: {session_err}\n")
-                sys.stderr.write(error_tb)
-                sys.stderr.flush()
-                # Continue anyway
-            
-            sys.stderr.write("DEBUG: About to call render()\n")
-            sys.stderr.flush()
-            try:
-                sys.stderr.write("DEBUG: Calling render() now...\n")
-                sys.stderr.flush()
-                
-                # Validate context before rendering
-                sys.stderr.write("DEBUG: Validating context keys...\n")
-                sys.stderr.flush()
-                required_keys = ['common_issues', 'step', 'user_issue', 'deepsearch_issue', 'suggested_rules']
-                for key in required_keys:
-                    if key not in context:
-                        sys.stderr.write(f"WARNING: Missing context key: {key}\n")
-                        sys.stderr.flush()
-                        context[key] = None if key != 'common_issues' else []
-                
-                sys.stderr.write("DEBUG: Context validated, calling render()...\n")
-                sys.stderr.flush()
-                result = render(request, "commander/home.html", context)
-                sys.stderr.write("DEBUG: render() completed successfully\n")
-                sys.stderr.flush()
-                
-                # Ensure result is a valid HttpResponse
-                if result is None:
-                    sys.stderr.write("ERROR: render() returned None\n")
-                    sys.stderr.flush()
-                    return HttpResponse("Internal Server Error", status=500)
-                
-                sys.stderr.write(f"DEBUG: Returning response with status: {result.status_code}\n")
-                sys.stderr.flush()
-                return result
-            except Exception as render_exc:
-                error_tb = traceback.format_exc()
-                sys.stderr.write("=" * 80 + "\n")
-                sys.stderr.write("ERROR: render() raised exception\n")
-                sys.stderr.write("=" * 80 + "\n")
-                sys.stderr.write(f"Exception Type: {type(render_exc).__name__}\n")
-                sys.stderr.write(f"Exception Message: {str(render_exc)}\n")
-                sys.stderr.write("\nFull Traceback:\n")
-                sys.stderr.write(error_tb)
-                sys.stderr.write("=" * 80 + "\n")
-                sys.stderr.flush()
-                print(f"ERROR: render() raised exception: {render_exc}")
-                traceback.print_exc()
-                raise
-        except Exception as render_error:
-            error_traceback = traceback.format_exc()
-            sys.stderr.write("=" * 80 + "\n")
-            sys.stderr.write("ERROR IN INNER TRY BLOCK (context/render):\n")
-            sys.stderr.write("=" * 80 + "\n")
-            sys.stderr.write(f"Exception Type: {type(render_error).__name__}\n")
-            sys.stderr.write(f"Exception Message: {str(render_error)}\n")
-            sys.stderr.write(f"Request Method: {request.method}\n")
-            sys.stderr.write(f"Request Path: {request.path}\n")
-            sys.stderr.write(f"User Agent: {request.META.get('HTTP_USER_AGENT', 'Unknown')}\n")
-            sys.stderr.write("\nFull Traceback:\n")
-            sys.stderr.write(error_traceback)
-            sys.stderr.write("=" * 80 + "\n")
-            sys.stderr.flush()
-            print(f"ERROR during template rendering: {render_error}")
-            traceback.print_exc()
-            # Re-raise to be caught by outer exception handler
-            raise
     except Exception as e:
         error_traceback = traceback.format_exc()
-        # Write to stderr (captured by Render logs)
-        sys.stderr.write("=" * 80 + "\n")
-        sys.stderr.write("ERROR IN HOME VIEW:\n")
-        sys.stderr.write("=" * 80 + "\n")
-        sys.stderr.write(f"Exception Type: {type(e).__name__}\n")
-        sys.stderr.write(f"Exception Message: {str(e)}\n")
-        sys.stderr.write("\nFull Traceback:\n")
+        sys.stderr.write(f"ERROR IN HOME VIEW: {e}\n")
         sys.stderr.write(error_traceback)
-        sys.stderr.write("=" * 80 + "\n")
         sys.stderr.flush()
         
-        # Also print to stdout
-        print("=" * 80)
-        print("ERROR IN HOME VIEW:")
-        print("=" * 80)
-        print(f"Exception Type: {type(e).__name__}")
-        print(f"Exception Message: {str(e)}")
-        print("\nFull Traceback:")
-        print(error_traceback)
-        print("=" * 80)
-        
-        # Log to file as well (handle permission errors in production)
-        try:
-            from datetime import datetime
-            with open("/tmp/django_error.log", "a") as f:
-                f.write(f"\n{'='*80}\n")
-                f.write(f"ERROR at {datetime.now()}\n")
-                f.write(f"{'='*80}\n")
-                f.write(f"Exception Type: {type(e).__name__}\n")
-                f.write(f"Exception Message: {str(e)}\n")
-                f.write(f"\nFull Traceback:\n{error_traceback}\n")
-                f.write(f"{'='*80}\n\n")
-        except Exception as log_error:
-            sys.stderr.write(f"Could not write to error log: {log_error}\n")
-            sys.stderr.flush()
-        
-        # Always return an error response instead of redirecting to prevent loops
-        # This ensures we always return something, even if there's an error
-        sys.stderr.write("DEBUG: Returning error response (always return, never redirect)\n")
-        sys.stderr.flush()
-        
-        # Try to update error count, but don't fail if session is broken
-        try:
-            error_count = request.session.get("error_count", 0)
-            request.session["error_count"] = min(error_count + 1, 10)  # Cap at 10
-            request.session.modified = True
-        except Exception:
-            pass  # Ignore session errors
-        
-        # Return a user-friendly error page
         error_html = f"""<html>
 <head>
     <title>Error - RainDrop Commander</title>
@@ -668,19 +282,15 @@ def home(request):
         body {{ font-family: 'Inter', Arial, sans-serif; padding: 40px; background: #1a1a1a; color: #bfdbfe; }}
         h1 {{ color: #ef4444; }}
         a {{ color: #60a5fa; text-decoration: none; }}
-        a:hover {{ text-decoration: underline; }}
         pre {{ background: #0d0d0d; padding: 15px; overflow-x: auto; font-size: 12px; border: 2px solid #60a5fa; }}
-        details {{ margin-top: 20px; }}
-        summary {{ cursor: pointer; color: #94a3b8; padding: 10px; background: #0d0d0d; }}
     </style>
 </head>
 <body>
     <h1>Application Error</h1>
-    <p>An error occurred while processing your request. Please try again.</p>
-    <p><strong>Error:</strong> {str(e)}</p>
+    <p>An error occurred. Please try again.</p>
     <p><a href="/">← Return to Homepage</a></p>
     <details>
-        <summary>Technical Details (Click to expand)</summary>
+        <summary>Technical Details</summary>
         <pre>{error_traceback}</pre>
     </details>
 </body>
