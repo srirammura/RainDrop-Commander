@@ -266,95 +266,59 @@ Return only valid JSON, no other text."""
 
 def generate_examples_from_issue(issue_description: str) -> tuple:
     """
-    Generate interaction examples from an issue description using parallel genre-based generation.
+    Sample interaction examples from WildChat dataset that are relevant to the issue.
     Returns examples and rule potential scores.
     
-    IMPORTANT: This function ALWAYS calls the LLM API - no caching or pooling.
-    Examples are generated fresh for each issue description using parallel genre-based approach.
+    IMPORTANT: This function samples from production data (WildChat) instead of generating.
+    Examples are classified using LLM to determine if they match the issue.
     """
     print(f"DEBUG: ===== generate_examples_from_issue() CALLED =====")
     print(f"DEBUG: Issue description: '{issue_description}'")
-    print(f"DEBUG: Using parallel genre-based generation")
+    print(f"DEBUG: Using WildChat dataset sampling")
     
     # Compute issue hash for cache isolation
     issue_hash = hashlib.md5(issue_description.encode('utf-8')).hexdigest()
     print(f"DEBUG: Issue hash: {issue_hash}")
     
-    # Step 1: Identify genres
-    print(f"DEBUG: Step 1: Identifying genres...")
-    genres = identify_genres(issue_description, issue_hash)
-    print(f"DEBUG: Identified {len(genres)} genres")
+    # Sample examples from WildChat dataset
+    print(f"DEBUG: Sampling examples from WildChat dataset...")
+    try:
+        all_examples = sample_examples_from_wildchat(issue_description, num_examples=12, issue_hash=issue_hash)
+        print(f"DEBUG: Sampled {len(all_examples)} examples from WildChat")
+    except Exception as e:
+        print(f"ERROR: Failed to sample examples from WildChat: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
     
-    # Step 2: Generate examples in parallel for each genre
-    print(f"DEBUG: Step 2: Generating examples in parallel for {len(genres)} genres...")
-    all_examples = []
+    # Evaluate rule potential for all examples in parallel
+    print(f"DEBUG: Evaluating rule potential for {len(all_examples)} examples...")
     rule_potential_scores = {}
     
     try:
-        with ThreadPoolExecutor(max_workers=min(len(genres), 6)) as executor:
-            # Submit all genre generation tasks
-            future_to_genre = {
-                executor.submit(_generate_examples_for_genre, genre["prompt"], genre["name"], issue_hash): genre["name"]
-                for genre in genres
+        with ThreadPoolExecutor(max_workers=min(len(all_examples), 4)) as eval_executor:
+            eval_futures = {
+                eval_executor.submit(evaluate_rule_potential, ex, issue_description, issue_hash): 
+                    (i, ex)
+                for i, ex in enumerate(all_examples)
             }
             
-            print(f"DEBUG: Submitted {len(future_to_genre)} genre generation tasks")
-            
-            # Process results as they complete
-            completed_genres = 0
-            for future in as_completed(future_to_genre):
-                genre_name = future_to_genre[future]
-                completed_genres += 1
-                print(f"DEBUG: Processing results from genre '{genre_name}' ({completed_genres}/{len(genres)})")
+            for eval_future in as_completed(eval_futures):
+                ex_idx, ex = eval_futures[eval_future]
                 try:
-                    genre_examples = future.result(timeout=120)  # 2 minute timeout per genre
-                    print(f"DEBUG: Genre '{genre_name}' returned {len(genre_examples)} examples")
-                    start_idx = len(all_examples)
-                    all_examples.extend(genre_examples)
-                    
-                    # Step 3: Evaluate rule potential in parallel as examples arrive
-                    if genre_examples:
-                        print(f"DEBUG: Evaluating rule potential for {len(genre_examples)} examples from genre '{genre_name}'...")
-                        try:
-                            with ThreadPoolExecutor(max_workers=min(len(genre_examples), 4)) as eval_executor:
-                                eval_futures = {
-                                    eval_executor.submit(evaluate_rule_potential, ex, issue_description, issue_hash): 
-                                        (start_idx + i, ex)
-                                    for i, ex in enumerate(genre_examples)
-                                }
-                                
-                                for eval_future in as_completed(eval_futures):
-                                    ex_idx, ex = eval_futures[eval_future]
-                                    try:
-                                        score_data = eval_future.result(timeout=60)  # 1 minute timeout per evaluation
-                                        rule_potential_scores[ex_idx] = score_data
-                                        print(f"DEBUG: Example {ex_idx} rule potential score: {score_data.get('score', 0)}")
-                                    except Exception as e:
-                                        print(f"WARNING: Rule potential evaluation failed for example {ex_idx}: {e}")
-                                        import traceback
-                                        traceback.print_exc()
-                                        rule_potential_scores[ex_idx] = {"score": 50, "reasoning": f"Evaluation error: {e}"}
-                        except Exception as eval_error:
-                            print(f"ERROR: Rule potential evaluation executor failed for genre '{genre_name}': {eval_error}")
-                            import traceback
-                            traceback.print_exc()
-                            # Continue without rule potential scores for this genre
-                                
+                    score_data = eval_future.result(timeout=60)  # 1 minute timeout per evaluation
+                    rule_potential_scores[ex_idx] = score_data
+                    print(f"DEBUG: Example {ex_idx} rule potential score: {score_data.get('score', 0)}")
                 except Exception as e:
-                    print(f"ERROR: Genre '{genre_name}' generation failed: {e}")
+                    print(f"WARNING: Rule potential evaluation failed for example {ex_idx}: {e}")
                     import traceback
                     traceback.print_exc()
-                    # Continue with other genres
-                    
-        print(f"DEBUG: Completed all genre generations. Total examples: {len(all_examples)}")
-        
-    except Exception as e:
-        print(f"ERROR: Parallel generation executor failed: {e}")
+                    rule_potential_scores[ex_idx] = {"score": 50, "reasoning": f"Evaluation error: {e}"}
+    except Exception as eval_error:
+        print(f"ERROR: Rule potential evaluation executor failed: {eval_error}")
         import traceback
         traceback.print_exc()
-        # If we have some examples, continue with them
-        if len(all_examples) == 0:
-            raise
+        # Continue without rule potential scores
     
     # Validate we have examples - allow partial success (at least 6 examples)
     if len(all_examples) >= 6:
