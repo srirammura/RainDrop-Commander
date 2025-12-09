@@ -322,12 +322,12 @@ def generate_examples_from_issue(issue_description: str) -> tuple:
     
     # Validate we have examples - allow partial success (at least 6 examples)
     if len(all_examples) >= 6:
-        print(f"DEBUG: Generated {len(all_examples)} total examples from {len(genres)} genres")
+        print(f"DEBUG: Sampled {len(all_examples)} total examples from WildChat dataset")
         print(f"DEBUG: Evaluated rule potential for {len(rule_potential_scores)} examples")
         
         # Ensure we have at least 10 examples (target 12)
         if len(all_examples) < 10:
-            print(f"WARNING: Only {len(all_examples)} examples generated, expected 10-12")
+            print(f"WARNING: Only {len(all_examples)} examples sampled, expected 10-12")
         
         # Log first example
         if all_examples:
@@ -339,12 +339,12 @@ def generate_examples_from_issue(issue_description: str) -> tuple:
         return all_examples, rule_potential_scores
     elif len(all_examples) > 0:
         # Partial success - we have some examples but not enough
-        print(f"WARNING: Only {len(all_examples)} examples generated (minimum 6 required), but continuing with partial results")
+        print(f"WARNING: Only {len(all_examples)} examples sampled (minimum 6 required), but continuing with partial results")
         return all_examples, rule_potential_scores
     else:
-        print(f"ERROR: No examples generated from LLM for issue: '{issue_description}'")
-        print(f"DEBUG: Attempted {len(genres)} genres, got {len(all_examples)} examples")
-        raise Exception(f"Failed to generate examples from LLM. Generated {len(all_examples)} examples from {len(genres)} genres.")
+        print(f"ERROR: No examples sampled from WildChat dataset for issue: '{issue_description}'")
+        print(f"DEBUG: Got {len(all_examples)} examples from dataset")
+        raise Exception(f"Failed to sample examples from WildChat dataset. Got {len(all_examples)} examples.")
 
 
 def format_matches(matches: List[Dict[str, str]]) -> str:
