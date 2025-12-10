@@ -12,6 +12,7 @@ from .services.mock_data import (
     get_common_issues,
 )
 import json
+import os
 from datetime import datetime
 
 
@@ -21,7 +22,7 @@ def health_check(request):
 
 
 def home(request):
-    """Main view - Step-by-step DeepSearch workflow."""
+    """Main view - Step-by-step DeepSearch workflow with training and scanning."""
     import sys
     import traceback
     from django.http import HttpResponse
@@ -55,6 +56,10 @@ def home(request):
         generated_rules = request.session.get("generated_rules")
         is_searching = request.session.get("searching", False)
         is_generating_rules = request.session.get("generating_rules", False)
+        is_training = request.session.get("training", False)
+        is_scanning = request.session.get("scanning_production", False)
+        training_result = request.session.get("training_result")
+        scan_result = request.session.get("scan_result")
         
         # Build deepsearch_issue from generated examples
         if user_issue and generated_examples:
@@ -81,13 +86,14 @@ def home(request):
                     request.session["current_example_index"] = -1
                     request.session["generated_examples"] = None
                     request.session["generated_rules"] = None
+                    request.session["training_result"] = None
+                    request.session["scan_result"] = None
                     request.session["loading_screen_shown"] = False
                     request.session.modified = True
                     return redirect("home")
             
             # Handle viewing examples and moving to rules
             elif "view_examples_done" in request.POST:
-                # User has reviewed examples, generate rules
                 if generated_examples and user_issue:
                     request.session["generating_rules"] = True
                     request.session["current_example_index"] = -3
@@ -104,23 +110,6 @@ def home(request):
                 if rule_id not in request.session["deployed_rules"]:
                     request.session["deployed_rules"].append(rule_id)
                 request.session.modified = True
-                
-                # Check if all rules processed
-                deployed_rules = request.session.get("deployed_rules", [])
-                rejected_rules = request.session.get("rejected_rules", [])
-                total_rules = len(generated_rules) if generated_rules else 0
-                
-                if total_rules > 0 and len(deployed_rules) + len(rejected_rules) >= total_rules:
-                    # All done, reset
-                    request.session["user_issue"] = None
-                    request.session["current_example_index"] = -2
-                    request.session["deployed_rules"] = []
-                    request.session["rejected_rules"] = []
-                    request.session["generated_examples"] = None
-                    request.session["generated_rules"] = None
-                    request.session.modified = True
-                    return redirect("home")
-                
                 return redirect("home")
             
             # Handle rejecting a rule
@@ -131,29 +120,42 @@ def home(request):
                 if rule_id not in request.session["rejected_rules"]:
                     request.session["rejected_rules"].append(rule_id)
                 request.session.modified = True
-                
-                # Check if all rules processed
-                deployed_rules = request.session.get("deployed_rules", [])
-                rejected_rules = request.session.get("rejected_rules", [])
-                total_rules = len(generated_rules) if generated_rules else 0
-                
-                if total_rules > 0 and len(deployed_rules) + len(rejected_rules) >= total_rules:
-                    # All done, reset
-                    request.session["user_issue"] = None
-                    request.session["current_example_index"] = -2
-                    request.session["deployed_rules"] = []
-                    request.session["rejected_rules"] = []
-                    request.session["generated_examples"] = None
-                    request.session["generated_rules"] = None
-                    request.session.modified = True
-                    return redirect("home")
-                
+                return redirect("home")
+            
+            # Handle starting classifier training
+            elif "start_training" in request.POST:
+                request.session["training"] = True
+                request.session["training_loading_shown"] = False
+                request.session.modified = True
+                return redirect("home")
+            
+            # Handle starting production scan
+            elif "start_scanning" in request.POST:
+                request.session["scanning_production"] = True
+                request.session["scanning_loading_shown"] = False
+                request.session.modified = True
+                return redirect("home")
+            
+            # Handle starting new issue
+            elif "new_issue" in request.POST:
+                # Reset everything
+                request.session["user_issue"] = None
+                request.session["current_example_index"] = -2
+                request.session["deployed_rules"] = []
+                request.session["rejected_rules"] = []
+                request.session["generated_examples"] = None
+                request.session["generated_rules"] = None
+                request.session["training"] = False
+                request.session["scanning_production"] = False
+                request.session["training_result"] = None
+                request.session["scan_result"] = None
+                request.session.modified = True
                 return redirect("home")
         
         # Determine current step
         step = "issue_input"
         
-        print(f"DEBUG: Step determination - is_searching={is_searching}, is_generating_rules={is_generating_rules}, current_index={current_index}")
+        print(f"DEBUG: Step determination - is_searching={is_searching}, is_generating_rules={is_generating_rules}, is_training={is_training}, is_scanning={is_scanning}")
         
         # Check if searching (loading examples)
         if is_searching and current_index == -1:
@@ -163,7 +165,6 @@ def home(request):
                 request.session["loading_screen_shown"] = True
                 request.session.modified = True
             elif generated_examples is None and user_issue:
-                # Generate examples from WildChat
                 try:
                     print(f"DEBUG: Starting example sampling for issue: '{user_issue[:50]}...'")
                     examples = generate_examples_from_issue(user_issue)
@@ -193,7 +194,6 @@ def home(request):
                 request.session["rules_loading_screen_shown"] = True
                 request.session.modified = True
             elif generated_rules is None and user_issue and generated_examples:
-                # Generate rules from examples
                 try:
                     print(f"DEBUG: Generating rules from {len(generated_examples)} examples")
                     rules = generate_rules_from_examples(user_issue, generated_examples)
@@ -213,6 +213,130 @@ def home(request):
                     request.session["generating_rules"] = False
                     request.session.modified = True
                     return redirect("home")
+        
+        # Check if training classifier
+        elif is_training and not training_result:
+            step = "training_classifier"
+            training_loading_shown = request.session.get("training_loading_shown", False)
+            if not training_loading_shown:
+                request.session["training_loading_shown"] = True
+                request.session.modified = True
+            else:
+                # Run training
+                try:
+                    from .services.training_data_generator import generate_full_training_dataset, save_dataset_to_huggingface_format
+                    from .services.classifier_trainer import train_classifier
+                    import hashlib
+                    
+                    # Get deployed rules
+                    deployed_rules = request.session.get("deployed_rules", [])
+                    accepted_rules = [r for r in generated_rules if r.get("id") in deployed_rules]
+                    
+                    if not accepted_rules:
+                        accepted_rules = generated_rules[:2]  # Use first 2 if none deployed
+                    
+                    print(f"DEBUG: Training classifier with {len(accepted_rules)} rules")
+                    
+                    # Generate training data
+                    issue_hash = hashlib.md5(user_issue.encode('utf-8')).hexdigest()[:8]
+                    dataset = generate_full_training_dataset(
+                        rules=accepted_rules,
+                        issue_description=user_issue,
+                        examples_per_rule=30  # Reduced for demo
+                    )
+                    
+                    # Save dataset
+                    dataset_dir = f"/tmp/raindrop_dataset_{issue_hash}"
+                    save_dataset_to_huggingface_format(dataset, dataset_dir)
+                    
+                    # Train classifier
+                    model_dir = f"/tmp/raindrop_model_{issue_hash}"
+                    result = train_classifier(
+                        dataset=dataset,
+                        model_output_dir=model_dir,
+                        epochs=2,  # Reduced for demo
+                        batch_size=8
+                    )
+                    
+                    request.session["training_result"] = {
+                        "model_path": model_dir,
+                        "metrics": result["metrics"],
+                        "train_size": dataset["metadata"]["total_positive"] + dataset["metadata"]["total_negative"],
+                        "accuracy": round(result["metrics"].get("eval_accuracy", 0) * 100, 1),
+                        "f1": round(result["metrics"].get("eval_f1", 0) * 100, 1)
+                    }
+                    request.session["training"] = False
+                    request.session["training_loading_shown"] = False
+                    request.session.modified = True
+                    return redirect("home")
+                    
+                except Exception as e:
+                    print(f"ERROR: Training failed: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    request.session["training_result"] = {"error": str(e)}
+                    request.session["training"] = False
+                    request.session.modified = True
+                    return redirect("home")
+        
+        # Check if scanning production
+        elif is_scanning and not scan_result:
+            step = "scanning_production"
+            scanning_loading_shown = request.session.get("scanning_loading_shown", False)
+            if not scanning_loading_shown:
+                request.session["scanning_loading_shown"] = True
+                request.session.modified = True
+            else:
+                # Run scan
+                try:
+                    from .services.scanner_service import scan_wildchat_with_classifier, get_scan_statistics
+                    
+                    model_path = training_result.get("model_path")
+                    if not model_path:
+                        raise Exception("No trained model found")
+                    
+                    print(f"DEBUG: Starting production scan with model: {model_path}")
+                    
+                    results = scan_wildchat_with_classifier(
+                        model_dir=model_path,
+                        issue_description=user_issue,
+                        num_samples=5000,  # Scan 5K for demo
+                        batch_size=32,
+                        confidence_threshold=0.7
+                    )
+                    
+                    stats = get_scan_statistics(results)
+                    
+                    request.session["scan_result"] = {
+                        "total_scanned": results["total_scanned"],
+                        "total_flagged": results["total_flagged"],
+                        "issue_rate": results["issue_rate_percent"],
+                        "scan_rate": results["scan_rate_per_second"],
+                        "duration": results["scan_duration_seconds"],
+                        "flagged_issues": results["flagged_issues"][:20],  # Top 20
+                        "statistics": stats
+                    }
+                    request.session["scanning_production"] = False
+                    request.session["scanning_loading_shown"] = False
+                    request.session.modified = True
+                    return redirect("home")
+                    
+                except Exception as e:
+                    print(f"ERROR: Scanning failed: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    request.session["scan_result"] = {"error": str(e)}
+                    request.session["scanning_production"] = False
+                    request.session.modified = True
+                    return redirect("home")
+        
+        # Show scan results
+        elif scan_result and not scan_result.get("error"):
+            step = "scan_results"
+        
+        # Show training results
+        elif training_result and not training_result.get("error"):
+            step = "training_complete"
         
         # Show examples review
         elif current_index >= 0 and generated_examples and user_issue:
@@ -250,6 +374,7 @@ def home(request):
         # Context
         display_user_issue = None if step == "issue_input" else user_issue
         total_rules = len(display_rules)
+        num_deployed = len([r for r in display_rules if r.get("deployed")])
         
         print(f"DEBUG: Building context - step={step}, total_examples={total_examples}, total_rules={total_rules}")
         
@@ -262,9 +387,14 @@ def home(request):
             "total_examples": total_examples,
             "step": step,
             "deployed_rules": deployed_rules,
+            "num_deployed": num_deployed,
             "is_searching": is_searching,
             "is_generating_rules": is_generating_rules,
+            "is_training": is_training,
+            "is_scanning": is_scanning,
             "total_rules": total_rules,
+            "training_result": training_result,
+            "scan_result": scan_result,
         }
         
         return render(request, "commander/home.html", context)
@@ -277,7 +407,7 @@ def home(request):
         
         error_html = f"""<html>
 <head>
-    <title>Error - RainDrop Commander</title>
+    <title>Error - RainDrop DeepSearch</title>
     <style>
         body {{ font-family: 'Inter', Arial, sans-serif; padding: 40px; background: #1a1a1a; color: #bfdbfe; }}
         h1 {{ color: #ef4444; }}

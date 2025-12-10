@@ -6,6 +6,59 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RainDrop DeepSearch</title>
     <link rel="stylesheet" href="{% static 'commander/css/style.css' %}">
+    <style>
+        .metric-card {
+            background: #2d2d2d;
+            border: 2px solid #60a5fa;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 3px 3px 0px #0d0d0d;
+        }
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #60a5fa;
+            margin-bottom: 5px;
+        }
+        .metric-label {
+            font-size: 0.9rem;
+            color: #94a3b8;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .flagged-issue {
+            background: #2d2d2d;
+            border: 2px solid #ef4444;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 3px 3px 0px #0d0d0d;
+        }
+        .confidence-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            border-radius: 0;
+        }
+        .confidence-high { background: #22c55e; color: white; }
+        .confidence-medium { background: #f59e0b; color: white; }
+        .progress-bar-container {
+            background: #1a1a1a;
+            border: 2px solid #60a5fa;
+            height: 20px;
+            margin: 20px 0;
+            box-shadow: inset 2px 2px 0px #0d0d0d;
+        }
+        .progress-bar-fill {
+            background: linear-gradient(90deg, #60a5fa, #3b82f6);
+            height: 100%;
+            transition: width 0.3s;
+        }
+    </style>
 </head>
 <body>
     <!-- Top Section - Title Only -->
@@ -64,84 +117,39 @@
                 </div>
             
             {% elif step == "searching" %}
-                <!-- Step 0.5: Loading Screen - Examples are being sampled -->
+                <!-- Loading: Searching for examples -->
                 <div class="searching-stage">
                     <div class="searching-content">
                         <div class="searching-spinner"></div>
-                        <h2 class="searching-title">Searching through millions of production interactions to find examples of your issue</h2>
-                        <p class="searching-subtitle">This may take a few moments...</p>
+                        <h2 class="searching-title">Searching through production interactions</h2>
+                        <p class="searching-subtitle">Finding examples relevant to your issue...</p>
                     </div>
-                    <script>
-                        setTimeout(function() {
-                            window.location.reload();
-                        }, 1000);
-                    </script>
+                    <script>setTimeout(function() { window.location.reload(); }, 1000);</script>
                 </div>
             
             {% elif step == "generating_rules" %}
-                <!-- Step 1.5: Rules Generation Loading Screen -->
+                <!-- Loading: Generating rules -->
                 <div class="searching-stage">
                     <div class="searching-content">
                         <div class="searching-spinner"></div>
-                        <h2 class="searching-title">Generating classification rules from the production examples</h2>
-                        <p class="searching-subtitle">These rules will be used to generate training data for your classifier...</p>
-                        
-                        <!-- Expandable description section -->
-                        <div class="expandable-description" style="margin-top: 30px; max-width: 800px; margin-left: auto; margin-right: auto;">
-                            <button class="expand-toggle" onclick="toggleDescription()" style="background: rgba(96, 165, 250, 0.1); border: 2px solid #60a5fa; border-radius: 0; color: #60a5fa; cursor: pointer; font-size: 1rem; font-weight: 600; padding: 14px 24px; width: 100%; text-align: center; box-shadow: 3px 3px 0px #0d0d0d; transition: all 0.1s;">
-                                <span style="display: block; margin-bottom: 4px;">How will these rules be used?</span>
-                                <span id="expand-text" style="color: #bfdbfe; font-size: 0.9rem; font-weight: 500; text-decoration: underline;">Click here to read more...</span>
-                            </button>
-                            <div id="description-content" style="display: none; margin-top: 20px; padding: 20px; background: rgba(96, 165, 250, 0.1); border: 2px solid #60a5fa; border-radius: 0; text-align: left; line-height: 1.8; box-shadow: inset 2px 2px 0px #0d0d0d;">
-                                <div style="color: #bfdbfe; font-size: 0.95rem;">
-                                    <ol style="margin-left: 20px; margin-bottom: 15px; padding-left: 10px;">
-                                        <li style="margin-bottom: 12px;">
-                                            <strong>Rule Generation:</strong> We analyze production examples to create precise classification rules that capture the pattern of your issue.
-                                        </li>
-                                        <li style="margin-bottom: 12px;">
-                                            <strong>Training Data Generation:</strong> These rules will be passed to an LLM to generate thousands of diverse training examples.
-                                        </li>
-                                        <li style="margin-bottom: 12px;">
-                                            <strong>Classifier Training:</strong> A specialized classifier will be trained on these examples to detect your specific issue.
-                                        </li>
-                                        <li style="margin-bottom: 12px;">
-                                            <strong>Production Scanning:</strong> The classifier will scan millions of production logs to find all occurrences of your issue.
-                                        </li>
-                                    </ol>
-                                </div>
-                            </div>
-                        </div>
+                        <h2 class="searching-title">Generating Classification Rules</h2>
+                        <p class="searching-subtitle">Creating rules from production examples...</p>
                     </div>
-                    <script>
-                        function toggleDescription() {
-                            const content = document.getElementById('description-content');
-                            const expandText = document.getElementById('expand-text');
-                            if (content.style.display === 'none') {
-                                content.style.display = 'block';
-                                expandText.textContent = 'Click here to hide';
-                            } else {
-                                content.style.display = 'none';
-                                expandText.textContent = 'Click here to read more...';
-                            }
-                        }
-                        setTimeout(function() {
-                            window.location.reload();
-                        }, 1000);
-                    </script>
+                    <script>setTimeout(function() { window.location.reload(); }, 1000);</script>
                 </div>
             
             {% elif step == "viewing_examples" %}
                 <!-- Step 1: View Production Examples -->
                 <div class="examples-stage">
                     {% if user_issue %}
-                    <div class="issue-display-in-box" style="margin-bottom: 24px; padding: 16px; background: rgba(96, 165, 250, 0.1); border: 2px solid #60a5fa; border-radius: 0; box-shadow: inset 2px 2px 0px #0d0d0d; max-width: 900px; margin-left: auto; margin-right: auto;">
-                        <p style="margin: 0; color: #bfdbfe; font-size: 0.95rem; text-align: center;"><strong style="color: #60a5fa;">Issue:</strong> {{ user_issue }}</p>
+                    <div class="issue-display-in-box" style="margin-bottom: 24px; padding: 16px; background: rgba(96, 165, 250, 0.1); border: 2px solid #60a5fa; max-width: 900px; margin-left: auto; margin-right: auto;">
+                        <p style="margin: 0; color: #bfdbfe; text-align: center;"><strong style="color: #60a5fa;">Issue:</strong> {{ user_issue }}</p>
                     </div>
                     {% endif %}
                     
                     <div class="stage-header" style="text-align: center; margin-bottom: 30px;">
                         <h2>📂 Production Examples Found</h2>
-                        <p class="subtitle">We found {{ total_examples }} relevant examples from production data</p>
+                        <p class="subtitle">Found {{ total_examples }} relevant examples from production data</p>
                     </div>
                     
                     <div class="examples-list" style="max-width: 900px; margin: 0 auto;">
@@ -153,15 +161,13 @@
                                 <span style="color: #94a3b8; font-size: 0.85rem;">Relevance: {{ example.relevance_score|floatformat:0 }}%</span>
                                 {% endif %}
                             </div>
-                            <div class="interaction-display">
-                                <div class="user-message" style="margin-bottom: 12px; padding: 12px; background: rgba(96, 165, 250, 0.1); border-left: 3px solid #60a5fa;">
-                                    <div style="color: #60a5fa; font-weight: 600; font-size: 0.8rem; margin-bottom: 5px;">USER</div>
-                                    <p style="color: #bfdbfe; margin: 0; line-height: 1.6;">{{ example.user|truncatewords:100 }}</p>
-                                </div>
-                                <div class="assistant-message" style="padding: 12px; background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6;">
-                                    <div style="color: #3b82f6; font-weight: 600; font-size: 0.8rem; margin-bottom: 5px;">ASSISTANT</div>
-                                    <p style="color: #bfdbfe; margin: 0; line-height: 1.6;">{{ example.assistant|truncatewords:100 }}</p>
-                                </div>
+                            <div style="margin-bottom: 12px; padding: 12px; background: rgba(96, 165, 250, 0.1); border-left: 3px solid #60a5fa;">
+                                <div style="color: #60a5fa; font-weight: 600; font-size: 0.8rem; margin-bottom: 5px;">USER</div>
+                                <p style="color: #bfdbfe; margin: 0; line-height: 1.6;">{{ example.user|truncatewords:80 }}</p>
+                            </div>
+                            <div style="padding: 12px; background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6;">
+                                <div style="color: #3b82f6; font-weight: 600; font-size: 0.8rem; margin-bottom: 5px;">ASSISTANT</div>
+                                <p style="color: #bfdbfe; margin: 0; line-height: 1.6;">{{ example.assistant|truncatewords:80 }}</p>
                             </div>
                         </div>
                         {% endfor %}
@@ -182,33 +188,36 @@
                 <!-- Step 2: Review Generated Rules -->
                 <div class="rules-review-stage">
                     {% if user_issue %}
-                    <div class="issue-display-in-box" style="margin-bottom: 24px; padding: 16px; background: rgba(96, 165, 250, 0.1); border: 2px solid #60a5fa; border-radius: 0; box-shadow: inset 2px 2px 0px #0d0d0d; max-width: 900px; margin-left: auto; margin-right: auto;">
-                        <p style="margin: 0; color: #bfdbfe; font-size: 0.95rem; text-align: center;"><strong style="color: #60a5fa;">Issue:</strong> {{ user_issue }}</p>
+                    <div class="issue-display-in-box" style="margin-bottom: 24px; padding: 16px; background: rgba(96, 165, 250, 0.1); border: 2px solid #60a5fa; max-width: 900px; margin-left: auto; margin-right: auto;">
+                        <p style="margin: 0; color: #bfdbfe; text-align: center;"><strong style="color: #60a5fa;">Issue:</strong> {{ user_issue }}</p>
                     </div>
                     {% endif %}
                     
                     <div class="stage-header" style="text-align: center; margin-bottom: 30px;">
                         <h2>📋 Generated Classification Rules</h2>
-                        <p class="subtitle">These rules will be used to generate training data for your issue classifier</p>
-                        {% if total_rules > 0 %}
-                        <p class="subtitle" style="margin-top: 10px; color: #60a5fa; font-weight: 600;">
-                            {{ total_rules }} Rule{{ total_rules|pluralize }} Generated
+                        <p class="subtitle">Accept rules to use for classifier training</p>
+                        <p style="color: #60a5fa; font-weight: 600; margin-top: 10px;">
+                            {{ num_deployed }} of {{ total_rules }} rules accepted
                         </p>
-                        {% endif %}
                     </div>
                     
                     <div class="rules-list" style="max-width: 900px; margin: 0 auto;">
                         {% for rule in suggested_rules %}
-                        <div class="rule-card" style="background: #2d2d2d; border: 2px solid #60a5fa; padding: 25px; margin-bottom: 20px; box-shadow: 3px 3px 0px #0d0d0d;" data-rule-id="{{ rule.id }}" {% if rule.deployed %}data-deployed="true" style="opacity: 0.6;"{% endif %}>
-                            <div class="rule-header" style="margin-bottom: 20px;">
-                                <h3 style="color: #60a5fa; font-size: 1.1rem; margin-bottom: 10px;">Rule {{ forloop.counter }}: {{ rule.title }}</h3>
+                        <div class="rule-card" style="background: #2d2d2d; border: 2px solid {% if rule.deployed %}#22c55e{% else %}#60a5fa{% endif %}; padding: 25px; margin-bottom: 20px; box-shadow: 3px 3px 0px #0d0d0d; {% if rule.deployed %}opacity: 0.8;{% endif %}">
+                            <div style="margin-bottom: 20px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                    <h3 style="color: #60a5fa; font-size: 1.1rem; margin: 0;">Rule {{ forloop.counter }}: {{ rule.title }}</h3>
+                                    {% if rule.deployed %}
+                                    <span style="background: #22c55e; color: white; padding: 4px 12px; font-size: 0.8rem; font-weight: 600;">✓ ACCEPTED</span>
+                                    {% endif %}
+                                </div>
                                 {% if rule.description %}
                                 <p style="color: #bfdbfe; margin-bottom: 12px; line-height: 1.6;">{{ rule.description }}</p>
                                 {% endif %}
                                 {% if rule.example %}
                                 <div style="padding: 12px; background: rgba(96, 165, 250, 0.1); border-left: 3px solid #60a5fa; margin-top: 10px;">
                                     <strong style="color: #60a5fa;">Example:</strong>
-                                    <span style="color: #bfdbfe;">"{{ rule.example|truncatewords:50 }}"</span>
+                                    <span style="color: #bfdbfe;">"{{ rule.example|truncatewords:30 }}"</span>
                                 </div>
                                 {% endif %}
                                 {% if rule.keywords %}
@@ -219,84 +228,207 @@
                                     {% endfor %}
                                 </div>
                                 {% endif %}
-                                {% if rule.training_guidance %}
-                                <div style="margin-top: 12px; padding: 10px; background: rgba(59, 130, 246, 0.1); border: 1px solid #3b82f6;">
-                                    <strong style="color: #3b82f6; font-size: 0.85rem;">Training Guidance:</strong>
-                                    <p style="color: #94a3b8; margin: 5px 0 0 0; font-size: 0.9rem;">{{ rule.training_guidance }}</p>
-                                </div>
-                                {% endif %}
                             </div>
                             
-                            <div class="rule-actions" style="display: flex; gap: 10px; margin-top: 20px;">
-                                {% if rule.deployed %}
-                                    <button class="btn-deploy" disabled style="opacity: 0.6;">✅ Accepted</button>
-                                {% else %}
-                                <form method="post" style="display: inline;" class="deploy-form">
+                            {% if not rule.deployed %}
+                            <div style="display: flex; gap: 10px;">
+                                <form method="post" style="display: inline;">
                                     {% csrf_token %}
                                     <input type="hidden" name="deploy_rule" value="{{ rule.id }}">
-                                    <button type="submit" class="btn-deploy" onclick="handleDeploy(event)">✅ Accept Rule</button>
+                                    <button type="submit" class="btn-deploy">✅ Accept Rule</button>
                                 </form>
-                                {% endif %}
-                                <form method="post" style="display: inline;" class="reject-form">
+                                <form method="post" style="display: inline;">
                                     {% csrf_token %}
                                     <input type="hidden" name="reject_rule" value="{{ rule.id }}">
                                     <button type="submit" class="btn-reject">❌ Reject</button>
                                 </form>
                             </div>
+                            {% endif %}
                         </div>
                         {% empty %}
-                        <div style="text-align: center; padding: 40px; color: #94a3b8;">
-                            <p>No rules were generated. Please try again with a different issue description.</p>
-                            <a href="/" style="color: #60a5fa;">← Back to Home</a>
+                        <p style="text-align: center; color: #94a3b8;">No rules generated. <a href="/" style="color: #60a5fa;">Try again</a></p>
+                        {% endfor %}
+                    </div>
+                    
+                    {% if num_deployed > 0 %}
+                    <div style="text-align: center; margin-top: 30px; padding: 20px; background: rgba(34, 197, 94, 0.1); border: 2px solid #22c55e;">
+                        <h3 style="color: #22c55e; margin-bottom: 15px;">🚀 Ready to Train Classifier</h3>
+                        <p style="color: #bfdbfe; margin-bottom: 20px;">Train a DistilBERT classifier using {{ num_deployed }} accepted rule(s)</p>
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="start_training" value="1">
+                            <button type="submit" class="btn-submit-issue" style="background: #22c55e; font-size: 1.1rem; padding: 15px 40px;">
+                                🧠 Train Classifier →
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+            
+            {% elif step == "training_classifier" %}
+                <!-- Loading: Training classifier -->
+                <div class="searching-stage">
+                    <div class="searching-content">
+                        <div class="searching-spinner"></div>
+                        <h2 class="searching-title">Training Classifier</h2>
+                        <p class="searching-subtitle">Generating training data and training DistilBERT model...</p>
+                        <div style="max-width: 600px; margin: 30px auto; text-align: left; color: #94a3b8;">
+                            <p>📝 Generating positive and negative examples from rules...</p>
+                            <p>🔄 Training DistilBERT classifier...</p>
+                            <p>📊 Evaluating on held-out test set...</p>
+                        </div>
+                    </div>
+                    <script>setTimeout(function() { window.location.reload(); }, 2000);</script>
+                </div>
+            
+            {% elif step == "training_complete" %}
+                <!-- Training Complete -->
+                <div class="training-complete-stage" style="max-width: 900px; margin: 0 auto;">
+                    {% if user_issue %}
+                    <div class="issue-display-in-box" style="margin-bottom: 24px; padding: 16px; background: rgba(96, 165, 250, 0.1); border: 2px solid #60a5fa;">
+                        <p style="margin: 0; color: #bfdbfe; text-align: center;"><strong style="color: #60a5fa;">Issue:</strong> {{ user_issue }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="stage-header" style="text-align: center; margin-bottom: 30px;">
+                        <h2>🧠 Classifier Trained Successfully!</h2>
+                        <p class="subtitle">Your issue-specific classifier is ready</p>
+                    </div>
+                    
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-value">{{ training_result.accuracy }}%</div>
+                            <div class="metric-label">Accuracy</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">{{ training_result.f1 }}%</div>
+                            <div class="metric-label">F1 Score</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">{{ training_result.train_size }}</div>
+                            <div class="metric-label">Training Examples</div>
+                        </div>
+                    </div>
+                    
+                    <div style="background: #2d2d2d; border: 2px solid #60a5fa; padding: 25px; margin: 30px 0; box-shadow: 3px 3px 0px #0d0d0d;">
+                        <h3 style="color: #60a5fa; margin-bottom: 15px;">📊 Model Details</h3>
+                        <p style="color: #bfdbfe; margin-bottom: 10px;"><strong>Model:</strong> DistilBERT (distilbert-base-uncased)</p>
+                        <p style="color: #bfdbfe; margin-bottom: 10px;"><strong>Training Data:</strong> {{ training_result.train_size }} examples (80% train, 20% test)</p>
+                        <p style="color: #94a3b8; font-size: 0.9rem; margin-top: 15px;">
+                            This classifier can now scan production data to find instances of your issue at ~10,000 examples/second.
+                        </p>
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 30px; padding: 20px; background: rgba(96, 165, 250, 0.1); border: 2px solid #60a5fa;">
+                        <h3 style="color: #60a5fa; margin-bottom: 15px;">🔍 Scan Production Data</h3>
+                        <p style="color: #bfdbfe; margin-bottom: 20px;">Run the classifier on thousands of production conversations</p>
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="start_scanning" value="1">
+                            <button type="submit" class="btn-submit-issue" style="font-size: 1.1rem; padding: 15px 40px;">
+                                🚀 Scan 5,000 Conversations →
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            
+            {% elif step == "scanning_production" %}
+                <!-- Loading: Scanning production -->
+                <div class="searching-stage">
+                    <div class="searching-content">
+                        <div class="searching-spinner"></div>
+                        <h2 class="searching-title">Scanning Production Data</h2>
+                        <p class="searching-subtitle">Running classifier on thousands of conversations...</p>
+                        <div style="max-width: 600px; margin: 30px auto; text-align: left; color: #94a3b8;">
+                            <p>📂 Loading WildChat production dataset...</p>
+                            <p>🔄 Running classifier inference...</p>
+                            <p>📊 Analyzing results...</p>
+                        </div>
+                    </div>
+                    <script>setTimeout(function() { window.location.reload(); }, 2000);</script>
+                </div>
+            
+            {% elif step == "scan_results" %}
+                <!-- Scan Results Dashboard -->
+                <div class="scan-results-stage" style="max-width: 1000px; margin: 0 auto;">
+                    {% if user_issue %}
+                    <div class="issue-display-in-box" style="margin-bottom: 24px; padding: 16px; background: rgba(96, 165, 250, 0.1); border: 2px solid #60a5fa;">
+                        <p style="margin: 0; color: #bfdbfe; text-align: center;"><strong style="color: #60a5fa;">Issue:</strong> {{ user_issue }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="stage-header" style="text-align: center; margin-bottom: 30px;">
+                        <h2>📊 Production Scan Results</h2>
+                        <p class="subtitle">Found {{ scan_result.total_flagged }} issues in {{ scan_result.total_scanned|floatformat:0 }} conversations</p>
+                    </div>
+                    
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-value">{{ scan_result.total_flagged }}</div>
+                            <div class="metric-label">Issues Found</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">{{ scan_result.issue_rate }}%</div>
+                            <div class="metric-label">Issue Rate</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">{{ scan_result.scan_rate|floatformat:0 }}/s</div>
+                            <div class="metric-label">Scan Speed</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">{{ scan_result.duration|floatformat:1 }}s</div>
+                            <div class="metric-label">Total Time</div>
+                        </div>
+                    </div>
+                    
+                    {% if scan_result.statistics.estimated_in_full_dataset %}
+                    <div style="background: rgba(239, 68, 68, 0.1); border: 2px solid #ef4444; padding: 20px; margin: 30px 0; text-align: center; box-shadow: 3px 3px 0px #0d0d0d;">
+                        <p style="color: #ef4444; font-size: 1.2rem; font-weight: 600; margin: 0;">
+                            ⚠️ Estimated {{ scan_result.statistics.estimated_in_full_dataset|floatformat:0 }} issues in full production dataset (1M conversations)
+                        </p>
+                    </div>
+                    {% endif %}
+                    
+                    <div style="margin-top: 40px;">
+                        <h3 style="color: #60a5fa; margin-bottom: 20px;">🔍 Flagged Conversations (Top {{ scan_result.flagged_issues|length }})</h3>
+                        
+                        {% for issue in scan_result.flagged_issues %}
+                        <div class="flagged-issue">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                <span style="color: #60a5fa; font-weight: 600;">Issue #{{ forloop.counter }}</span>
+                                <span class="confidence-badge {% if issue.confidence >= 0.9 %}confidence-high{% else %}confidence-medium{% endif %}">
+                                    {{ issue.confidence|floatformat:0|stringformat:"s" }}% confidence
+                                </span>
+                            </div>
+                            <div style="margin-bottom: 10px; padding: 10px; background: rgba(96, 165, 250, 0.1); border-left: 3px solid #60a5fa;">
+                                <div style="color: #60a5fa; font-weight: 600; font-size: 0.75rem; margin-bottom: 4px;">USER</div>
+                                <p style="color: #bfdbfe; margin: 0; font-size: 0.9rem;">{{ issue.user|truncatewords:50 }}</p>
+                            </div>
+                            <div style="padding: 10px; background: rgba(239, 68, 68, 0.1); border-left: 3px solid #ef4444;">
+                                <div style="color: #ef4444; font-weight: 600; font-size: 0.75rem; margin-bottom: 4px;">ASSISTANT (Issue Detected)</div>
+                                <p style="color: #bfdbfe; margin: 0; font-size: 0.9rem;">{{ issue.assistant|truncatewords:50 }}</p>
+                            </div>
                         </div>
                         {% endfor %}
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 40px;">
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="new_issue" value="1">
+                            <button type="submit" class="btn-submit-issue">
+                                ← Start New Issue Detection
+                            </button>
+                        </form>
                     </div>
                 </div>
             {% endif %}
         </div>
     </div>
 
-    <!-- Deploy Loading Overlay -->
-    <div id="deployLoadingOverlay" class="deploy-loading-overlay">
-        <div class="deploy-loading-content">
-            <div class="deploy-loading-spinner"></div>
-            <div class="deploy-loading-text">The rule is being prepared for classifier training</div>
-            <div class="deploy-loading-subtext">Please wait...</div>
-        </div>
-    </div>
-    
     <script>
-        window.addEventListener('DOMContentLoaded', function() {
-            const overlay = document.getElementById('deployLoadingOverlay');
-            if (overlay) {
-                overlay.classList.remove('active');
-            }
-        });
-        
         function fillIssue(issueText) {
             document.getElementById('issue_text').value = issueText;
-        }
-        
-        function handleDeploy(event) {
-            event.preventDefault();
-            
-            const overlay = document.getElementById('deployLoadingOverlay');
-            if (overlay) {
-                overlay.classList.add('active');
-            }
-            
-            const btn = event.target;
-            btn.disabled = true;
-            
-            setTimeout(() => {
-                const form = event.target.closest('form');
-                if (form) {
-                    if (overlay) {
-                        overlay.classList.remove('active');
-                    }
-                    form.submit();
-                }
-            }, 3000);
         }
     </script>
 </body>
